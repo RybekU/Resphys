@@ -1,6 +1,5 @@
 use super::super::collision::{self, ContactManifold, Shape};
-// TODO: maybe mint vector?
-use quicksilver::geom::Vector;
+use glam::Vec2;
 
 /// Describes a body in shape of `Shape`.
 ///
@@ -8,10 +7,10 @@ use quicksilver::geom::Vector;
 #[derive(Clone, Debug)]
 pub struct Body<T> {
     pub shape: Shape,
-    pub position: Vector,
+    pub position: Vec2,
     /// static body CAN have velocity - it just behaves as if it had infinite mass
     /// and doesn't collide with other static bodies
-    pub velocity: Vector,
+    pub velocity: Vec2,
     /// Type of body - `static` or `dynamic`
     pub btype: BodyType,
     /// Whether to treat the body as physical or not
@@ -27,8 +26,8 @@ pub struct Body<T> {
 impl<T> Body<T> {
     pub fn new(
         shape: Shape,
-        position: Vector,
-        velocity: Vector,
+        position: Vec2,
+        velocity: Vec2,
         btype: BodyType,
         state: BodyState,
         category_bits: u32,

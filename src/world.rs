@@ -111,8 +111,8 @@ impl<T: Copy> PhysicsWorld<T> {
             let contact = manifold.best_contact();
             body.position -= contact.normal * contact.depth;
 
-            body.velocity.x *= contact.normal.y.abs();
-            body.velocity.y *= contact.normal.x.abs();
+            *body.velocity.x_mut() *= contact.normal.y().abs();
+            *body.velocity.y_mut() *= contact.normal.x().abs();
         }
     }
 }

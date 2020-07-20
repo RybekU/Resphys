@@ -1,13 +1,13 @@
 pub use super::super::collision::Shape;
 pub use super::{Body, BodyHandle, BodyState, BodyType};
-use quicksilver::geom::Vector;
+use glam::Vec2;
 
 #[derive(Debug, Clone)]
 pub struct BodyBuilder<T> {
     pub shape: Shape,
-    pub position: Vector,
+    pub position: Vec2,
 
-    pub velocity: Vector,
+    pub velocity: Vec2,
     pub btype: BodyType,
     pub state: BodyState,
 
@@ -18,11 +18,11 @@ pub struct BodyBuilder<T> {
 }
 
 impl<T: Copy> BodyBuilder<T> {
-    pub fn new(shape: Shape, position: Vector, user_tag: T) -> Self {
+    pub fn new(shape: Shape, position: Vec2, user_tag: T) -> Self {
         Self {
             shape,
             position,
-            velocity: Vector::ZERO,
+            velocity: Vec2::zero(),
             btype: BodyType::Dynamic,
             state: BodyState::Solid,
             category_bits: 1,
@@ -30,11 +30,11 @@ impl<T: Copy> BodyBuilder<T> {
             user_tag,
         }
     }
-    pub fn with_position(mut self, position: Vector) -> Self {
+    pub fn with_position(mut self, position: Vec2) -> Self {
         self.position = position;
         self
     }
-    pub fn with_velocity(mut self, velocity: Vector) -> Self {
+    pub fn with_velocity(mut self, velocity: Vec2) -> Self {
         self.velocity = velocity;
         self
     }
