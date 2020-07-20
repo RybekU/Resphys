@@ -1,0 +1,17 @@
+[package]
+name = "resphys"
+version = "0.0.1"
+authors = ["Rybek"]
+readme = "README.md"
+keywords = [ "physics", "2d", "real-time", "simple" ]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+slab = "0.4.2"
+fxhash = "0.2.1"
+petgraph = "0.5.1"
+
+# TODO: Replace with mint + math lib
+quicksilver = {git = "https://github.com/ryanisaacg/quicksilver", rev = "8fdff10", features = ["stdweb"]}
