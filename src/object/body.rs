@@ -2,7 +2,7 @@ use super::super::collision::{self, ContactManifold, Shape};
 use glam::Vec2;
 
 /// Describes a body in shape of `Shape`.
-///
+///  
 /// Currently there's no "fixture" like in Box2D and body has only 1 shape attached.
 #[derive(Clone, Debug)]
 pub struct Body<T> {
@@ -73,7 +73,8 @@ pub fn collision_info<T>(body1: &Body<T>, body2: &Body<T>) -> Option<ContactMani
     }
 }
 
-/// Unique identifier of an object stored in the world
+/// Unique identifier of an object stored in the world.
+/// If object gets removed the identifier will be reused.
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BodyHandle(pub usize);
 

@@ -2,6 +2,7 @@ pub use super::super::collision::Shape;
 pub use super::{Body, BodyHandle, BodyState, BodyType};
 use glam::Vec2;
 
+/// Builder for the `Body`. Start with `new`, finish with `build`.
 #[derive(Debug, Clone)]
 pub struct BodyBuilder<T> {
     pub shape: Shape,

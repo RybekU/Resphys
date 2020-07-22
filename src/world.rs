@@ -11,7 +11,7 @@ pub struct PhysicsWorld<T> {
     pub collision_graph: CollisionGraph,
     pub manifolds: Vec<ContactInfo>,
 
-    pub events: Vec<PhysicsEvent<T>>,
+    pub(crate) events: Vec<PhysicsEvent<T>>,
 }
 
 impl<T: Copy> PhysicsWorld<T> {
@@ -24,10 +24,21 @@ impl<T: Copy> PhysicsWorld<T> {
             events: Vec::with_capacity(16),
         }
     }
+    /// Adds the new body to the physics engine and returns it's unique handle.
     pub fn add(&mut self, body: Body<T>) -> BodyHandle {
         let key = self.bodies.insert(body);
         self.collision_graph.add_node(key);
         BodyHandle(key)
+    }
+    /// Panics if there's no body associated with the handle.  
+    /// Currently if a body gets removed no CollisionEnded event gets sent.  
+    /// The behavior might change in the future.
+    pub fn remove(&mut self, handle: BodyHandle) {
+        self.bodies.remove(handle.0);
+        self.collision_graph.remove_node(handle.0);
+        // TODO: Consider collision ended event during next step
+        // another consideration is letting the user get a list of colliding bodies
+        // and letting them handle it themselves prior to removal
     }
     pub fn get_body(&self, handle: BodyHandle) -> Option<&Body<T>> {
         self.bodies.get(handle.0)

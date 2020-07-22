@@ -35,7 +35,7 @@ impl CollisionGraph {
             self.src.add_edge(node_id1, node_id2, true);
         }
     }
-    #[allow(dead_code)]
+
     pub fn remove_node(&mut self, handle: usize) {
         let node_id = match self.binding.get(&handle) {
             Some(&node_id) => node_id,

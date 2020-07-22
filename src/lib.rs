@@ -8,10 +8,11 @@ pub use self::event::PhysicsEvent;
 pub use self::object::*;
 pub use self::world::*;
 
+// TODO: tests once public API is more defined...
 #[cfg(test)]
 mod tests {
     #[test]
-    fn it_works() {
+    fn todo() {
         assert_eq!(2 + 2, 4);
     }
 }

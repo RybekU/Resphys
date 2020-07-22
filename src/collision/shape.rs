@@ -2,6 +2,7 @@ use glam::Vec2;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Shape {
+    /// stores the half extents
     AABB(Vec2),
 }
 
