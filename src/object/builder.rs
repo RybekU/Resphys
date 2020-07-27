@@ -1,5 +1,5 @@
 pub use super::super::collision::Shape;
-pub use super::{Body, BodyHandle, BodyState, BodyType};
+pub use super::{Body, BodyHandle, BodyStatus, Collider, ColliderState};
 use glam::Vec2;
 
 /// Builder for the `Body`. Start with `new`, finish with `build`.
@@ -9,8 +9,8 @@ pub struct BodyBuilder<T> {
     pub position: Vec2,
 
     pub velocity: Vec2,
-    pub btype: BodyType,
-    pub state: BodyState,
+    pub status: BodyStatus,
+    pub state: ColliderState,
 
     pub category_bits: u32,
     pub mask_bits: u32,
@@ -24,8 +24,8 @@ impl<T: Copy> BodyBuilder<T> {
             shape,
             position,
             velocity: Vec2::zero(),
-            btype: BodyType::Dynamic,
-            state: BodyState::Solid,
+            status: BodyStatus::Dynamic,
+            state: ColliderState::Solid,
             category_bits: 1,
             mask_bits: u32::MAX,
             user_tag,
@@ -40,11 +40,11 @@ impl<T: Copy> BodyBuilder<T> {
         self
     }
     pub fn make_static(mut self) -> Self {
-        self.btype = BodyType::Static;
+        self.status = BodyStatus::Static;
         self
     }
     pub fn sensor(mut self) -> Self {
-        self.state = BodyState::Sensor;
+        self.state = ColliderState::Sensor;
         self
     }
     pub fn with_category(mut self, category_bits: u32) -> Self {
@@ -59,16 +59,18 @@ impl<T: Copy> BodyBuilder<T> {
         self.user_tag = user_tag;
         self
     }
-    pub fn build(self) -> Body<T> {
-        Body::new(
-            self.shape,
-            self.position,
-            self.velocity,
-            self.btype,
-            self.state,
-            self.category_bits,
-            self.mask_bits,
-            self.user_tag,
+    pub fn build(self) -> (Body, Collider<T>) {
+        (
+            Body::new(self.position, self.velocity, self.status),
+            Collider::new(
+                self.shape,
+                Vec2::zero(),
+                self.state,
+                self.category_bits,
+                self.mask_bits,
+                self.user_tag,
+                BodyHandle { 0: 0 },
+            ),
         )
     }
 }
