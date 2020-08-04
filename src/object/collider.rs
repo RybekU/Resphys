@@ -54,6 +54,9 @@ pub fn collided<T>(
     position2: Vec2,
 ) -> bool {
     use Shape::*;
+    // apply offset
+    let position1 = position1 + collider1.offset;
+    let position2 = position2 + collider2.offset;
     match (collider1.shape, collider2.shape) {
         (AABB(half_extents1), AABB(half_extents2)) => {
             collision::collision_aabb_aabb(position1, half_extents1, position2, half_extents2)
@@ -69,6 +72,9 @@ pub fn collision_info<T>(
     position2: Vec2,
 ) -> Option<ContactManifold> {
     use Shape::*;
+    // apply offset
+    let position1 = position1 + collider1.offset;
+    let position2 = position2 + collider2.offset;
     match (collider1.shape, collider2.shape) {
         (AABB(half_extents1), AABB(half_extents2)) => collision::collision_aabb_aabb_manifold(
             position1,
