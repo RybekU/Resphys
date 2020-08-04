@@ -125,9 +125,9 @@ impl<T: Copy> PhysicsWorld<T> {
         let mut removed_edges = vec![];
         // fake narrow-phase replacement
         for edge_id in collision_graph.src.edge_indices() {
-            let (node_id1, node_id2) = collision_graph.src.edge_endpoints(edge_id).unwrap();
-            let handle1 = collision_graph.src[node_id1];
-            let handle2 = collision_graph.src[node_id2];
+            let (node1_id, node2_id) = collision_graph.src.edge_endpoints(edge_id).unwrap();
+            let handle1 = collision_graph.src[node1_id];
+            let handle2 = collision_graph.src[node2_id];
             let collider1 = &colliders[handle1];
             let collider2 = &colliders[handle2];
 
@@ -150,11 +150,22 @@ impl<T: Copy> PhysicsWorld<T> {
                 events,
             );
             if remove_edge {
-                removed_edges.push(edge_id);
+                removed_edges.push((node1_id, node2_id));
             }
         }
-        removed_edges.into_iter().for_each(|edge| {
-            collision_graph.src.remove_edge(edge);
+
+        removed_edges.into_iter().for_each(|(node1_id, node2_id)| {
+            if let Some(edge_id) = collision_graph.src.find_edge(node1_id, node2_id) {
+                if let None = collision_graph.src.remove_edge(edge_id) {
+                    log::debug!("CollisionGraph error: Invalid edge removed")
+                }
+            } else {
+                log::debug!(
+                    "CollisionGraph error: No edge between {:?} and {:?}",
+                    node1_id,
+                    node2_id
+                );
+            }
         });
 
         // resolve collisions TODO: resolve multiple collisions for one body

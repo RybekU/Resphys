@@ -1,13 +1,19 @@
 use glam::Vec2;
 use macroquad::*;
-use resphys::{Body, Collider, ColliderState, Shape};
+use resphys::{Collider, ColliderState, Shape};
 
 // Body creation with builder assistance, event iteration and deletion of bodies
+
+extern crate log;
+
+use log::debug;
 
 const FPS_INV: f32 = 1. / 60.;
 
 #[macroquad::main("Emitting events")]
 async fn main() {
+    simple_logger::init().unwrap();
+
     let mut physics = resphys::PhysicsWorld::<TagType>::new();
 
     let rectangle = Shape::AABB(Vec2::new(36., 36.));
@@ -21,7 +27,7 @@ async fn main() {
     collider1.owner = body1_handle;
     let mut collider1_2 = collider1.clone();
     collider1_2.shape = bar;
-    collider1_2.offset = Vec2::new(0., -8.);
+    collider1_2.offset = Vec2::new(0., 36. - 8.);
     collider1_2.state = ColliderState::Sensor;
     collider1_2.user_tag = TagType::MovingSensor;
     physics.add_collider(collider1);
@@ -57,25 +63,13 @@ async fn main() {
         remaining_time += get_frame_time();
         while remaining_time >= FPS_INV {
             physics.step(FPS_INV);
+
+            for event in physics.events().iter() {
+                debug!("{:?}", event);
+            }
+
             remaining_time -= FPS_INV;
         }
-
-        // let mut to_delete = None;
-        for event in physics.events().iter() {
-            println!("{:?}", event);
-            // to_delete = match event {
-            //     resphys::PhysicsEvent::CollisionStarted(
-            //         _,
-            //         handle2,
-            //         TagType::Moving,
-            //         TagType::Collidable,
-            //     ) => Some(*handle2),
-            //     _ => None,
-            // };
-        }
-        // to_delete
-        //     .into_iter()
-        //     .for_each(|handle| physics.remove_body(handle));
 
         clear_background(Color::new(0., 1., 1., 1.));
         for (_, collider) in physics.colliders.iter() {
@@ -96,17 +90,12 @@ fn draw_collider(collider: &Collider<TagType>, position: Vec2) {
     let fill_color = color;
 
     color.0[3] = (0.3 * 255.) as u8;
-    // This works because there's currently only AABB shape.
+    // This works because there's currently only AABB shape. Half extents.
     let Shape::AABB(wh) = collider.shape;
-    draw_rectangle(position.x(), position.y(), wh.x() * 2., wh.y() * 2., color);
-    draw_rectangle_lines(
-        position.x(),
-        position.y(),
-        wh.x() * 2.,
-        wh.y() * 2.,
-        3.,
-        fill_color,
-    );
+    let x_pos = position.x() - wh.x() + collider.offset.x();
+    let y_pos = position.y() - wh.y() + collider.offset.y();
+    draw_rectangle(x_pos, y_pos, wh.x() * 2., wh.y() * 2., color);
+    draw_rectangle_lines(x_pos, y_pos, wh.x() * 2., wh.y() * 2., 3., fill_color);
 }
 #[derive(Clone, Copy, Debug)]
 enum TagType {
