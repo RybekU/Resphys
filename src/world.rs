@@ -31,17 +31,39 @@ impl<T: Copy> PhysicsWorld<T> {
     }
 
     /// Adds the new collider to the physics engine and returns it's unique handle.
-    pub fn add_collider(&mut self, collider: Collider<T>) -> ColliderHandle {
+    /// If body isn't valid returns None.
+    pub fn add_collider(&mut self, collider: Collider<T>) -> Option<ColliderHandle> {
+        let body = self.bodies.get_mut(collider.owner.0)?;
         let key = self.colliders.insert(collider);
         self.collision_graph.add_node(key);
-        ColliderHandle(key)
+        body.colliders.push(ColliderHandle(key));
+        Some(ColliderHandle(key))
     }
     /// Panics if there's no collider associated with the handle.  
-    /// Currently if a `Collider` gets removed no CollisionEnded event gets sent.  
+    /// Currently if a `Collider` is removed no CollisionEnded event gets sent.  
     /// The behavior might change in the future.
     pub fn remove_collider(&mut self, handle: ColliderHandle) {
-        self.colliders.remove(handle.0);
+        let collider = self.colliders.remove(handle.0);
         self.collision_graph.remove_node(handle.0);
+
+        // if owner doesn't exist it's assumed both collider and body are getting removed
+        if let Some(body) = self.bodies.get_mut(collider.owner.0) {
+            // after it gets onto stable: body.colliders.remove_item(handle);
+            let index = body
+                .colliders
+                .iter()
+                .position(|owned_handle| *owned_handle == handle);
+            match index {
+                Some(index) => {
+                    body.colliders.swap_remove(index);
+                }
+                None =>
+                {
+                    #[cfg(debug)]
+                    panic!("Body didn't know about this collider")
+                }
+            }
+        }
         // TODO: Consider collision ended event during next step
         // another consideration is letting the user get a list of colliding colliders
         // and letting them handle it themselves prior to removal
@@ -53,18 +75,20 @@ impl<T: Copy> PhysicsWorld<T> {
         self.colliders.get_mut(handle.0)
     }
 
-    /// Adds the new body to the physics engine and returns it's unique handle.
+    /// Adds a new body to the physics engine and returns it's unique handle.
     pub fn add_body(&mut self, body: Body) -> BodyHandle {
         let key = self.bodies.insert(body);
         BodyHandle(key)
     }
 
     /// Panics if there's no body associated with the handle.  
-    /// Currently if a body gets removed no CollisionEnded event gets sent for the colliders.  
+    /// Currently if a body is removed no CollisionEnded event gets sent for the colliders.  
     /// The behavior might change in the future.
     pub fn remove_body(&mut self, handle: BodyHandle) {
-        self.bodies.remove(handle.0);
-        // IMPORTANT TODO: Remove all associated colliders
+        let body = self.bodies.remove(handle.0);
+        for collider_handle in body.colliders.into_iter() {
+            self.remove_collider(collider_handle);
+        }
     }
     pub fn get_body(&self, handle: BodyHandle) -> Option<&Body> {
         self.bodies.get(handle.0)

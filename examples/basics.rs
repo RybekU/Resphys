@@ -40,7 +40,11 @@ async fn main() {
             .build();
     let body2_handle = physics.add_body(body2);
     collider2.owner = body2_handle;
+    let mut collider2_2 = collider2.clone();
+    collider2_2.offset = Vec2::new(0., 80.);
+    collider2_2.state = ColliderState::Sensor;
     physics.add_collider(collider2);
+    physics.add_collider(collider2_2);
 
     let (body3, mut collider3) =
         resphys::builder::BodyBuilder::new(rectangle, Vec2::new(600., 360.), TagType::Collidable)
@@ -65,9 +69,33 @@ async fn main() {
         while remaining_time >= FPS_INV {
             physics.step(FPS_INV);
 
+            let mut to_remove = Vec::new();
             for event in physics.events().iter() {
                 debug!("{:?}", event);
+                if let resphys::PhysicsEvent::CollisionStarted(
+                    _moving,
+                    other,
+                    TagType::MovingSensor,
+                    _any,
+                ) = event
+                {
+                    to_remove.push(*other);
+                }
+                if let resphys::PhysicsEvent::OverlapStarted(
+                    other,
+                    _moving,
+                    _any,
+                    TagType::MovingSensor,
+                ) = event
+                {
+                    to_remove.push(*other);
+                }
             }
+            to_remove.into_iter().for_each(|collision_handle| {
+                let collider_owner = physics.get_collider(collision_handle).unwrap().owner;
+                physics.remove_body(collider_owner);
+                // physics.remove_collider(collision_handle);
+            });
 
             remaining_time -= FPS_INV;
         }

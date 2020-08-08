@@ -4,7 +4,6 @@ use super::object::ColliderHandle;
 /// In case of an overlap between a solid body and sensor the solid body is guaranteed to be the first handle.
 #[derive(Debug, Clone, Copy)]
 pub enum PhysicsEvent<T> {
-    // TODO: Should it include the normal for 2 solid bodies or not?
     OverlapStarted(ColliderHandle, ColliderHandle, T, T),
     OverlapEnded(ColliderHandle, ColliderHandle, T, T),
     CollisionStarted(ColliderHandle, ColliderHandle, T, T),

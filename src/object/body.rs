@@ -1,11 +1,9 @@
+use super::collider::ColliderHandle;
 use glam::Vec2;
 
-// Body has position, velocity, body type
-// Collider has everything else
-
-/// Describes a body in shape of `Shape`.
+/// Describes a body.
 ///  
-/// Currently there's no "fixture" like in Box2D and body has only 1 shape attached.
+/// It functions as a container for colliders.
 #[derive(Clone, Debug)]
 pub struct Body {
     pub position: Vec2,
@@ -17,6 +15,8 @@ pub struct Body {
     pub status: BodyStatus,
     /// Whether colliders of the same body should collide
     pub self_collide: bool,
+    // list of colliders belonging to body allowing quick access
+    pub(crate) colliders: Vec<ColliderHandle>,
 }
 
 impl Body {
@@ -26,6 +26,7 @@ impl Body {
             velocity,
             status,
             self_collide,
+            colliders: Vec::new(),
         }
     }
 }
