@@ -87,7 +87,7 @@ impl<T: Copy> PhysicsWorld<T> {
 
         // apply velocity for every body
         for (_, body) in bodies.iter_mut() {
-            if let BodyStatus::Dynamic = body.status {
+            if let BodyStatus::Kinematic = body.status {
                 body.position += body.velocity * dt;
             }
         }
@@ -112,6 +112,12 @@ impl<T: Copy> PhysicsWorld<T> {
                 if category_mismatch {
                     continue;
                 }
+
+                // don't collide with same body if it's disabled
+                if collider1.owner.0 == collider2.owner.0 && !body1.self_collide {
+                    continue;
+                }
+
                 let body2 = bodies
                     .get(collider2.owner.0)
                     .expect("Collider without a body");

@@ -10,6 +10,7 @@ pub struct BodyBuilder<T> {
 
     pub velocity: Vec2,
     pub status: BodyStatus,
+    pub self_collide: bool,
     pub state: ColliderState,
 
     pub category_bits: u32,
@@ -24,7 +25,8 @@ impl<T: Copy> BodyBuilder<T> {
             shape,
             position,
             velocity: Vec2::zero(),
-            status: BodyStatus::Dynamic,
+            status: BodyStatus::Kinematic,
+            self_collide: true,
             state: ColliderState::Solid,
             category_bits: 1,
             mask_bits: u32::MAX,
@@ -47,6 +49,10 @@ impl<T: Copy> BodyBuilder<T> {
         self.state = ColliderState::Sensor;
         self
     }
+    pub fn self_collision(mut self, check: bool) -> Self {
+        self.self_collide = check;
+        self
+    }
     pub fn with_category(mut self, category_bits: u32) -> Self {
         self.category_bits = category_bits;
         self
@@ -61,7 +67,7 @@ impl<T: Copy> BodyBuilder<T> {
     }
     pub fn build(self) -> (Body, Collider<T>) {
         (
-            Body::new(self.position, self.velocity, self.status),
+            Body::new(self.position, self.velocity, self.status, self.self_collide),
             Collider::new(
                 self.shape,
                 Vec2::zero(),

@@ -22,6 +22,7 @@ async fn main() {
     let (body1, mut collider1) =
         resphys::builder::BodyBuilder::new(rectangle, Vec2::new(360., 285.), TagType::Moving)
             .with_velocity(Vec2::new(75., 48.))
+            .self_collision(false)
             .build();
     let body1_handle = physics.add_body(body1);
     collider1.owner = body1_handle;

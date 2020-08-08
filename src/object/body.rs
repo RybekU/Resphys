@@ -13,16 +13,19 @@ pub struct Body {
     /// (this might change with introduction of kinematic body that pushes other objects)  
     /// and doesn't collide with other static bodies
     pub velocity: Vec2,
-    /// Type of body - `static` or `dynamic`
+    /// Type of body - `static` or `kinematic`
     pub status: BodyStatus,
+    /// Whether colliders of the same body should collide
+    pub self_collide: bool,
 }
 
 impl Body {
-    pub fn new(position: Vec2, velocity: Vec2, status: BodyStatus) -> Self {
+    pub fn new(position: Vec2, velocity: Vec2, status: BodyStatus, self_collide: bool) -> Self {
         Self {
             position,
             velocity,
             status,
+            self_collide,
         }
     }
 }
@@ -38,5 +41,5 @@ pub enum BodyStatus {
     /// Even when it moves it never collides with anything.
     Static,
     /// Collides with both static and dynamic bodies.
-    Dynamic,
+    Kinematic,
 }
