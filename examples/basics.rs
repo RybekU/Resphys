@@ -64,6 +64,7 @@ async fn main() {
     physics.add_collider(collider4);
 
     let mut remaining_time = 0.;
+    let mut counter = 0;
     loop {
         remaining_time += get_frame_time();
         while remaining_time >= FPS_INV {
@@ -71,7 +72,8 @@ async fn main() {
 
             let mut to_remove = Vec::new();
             for event in physics.events().iter() {
-                debug!("{:?}", event);
+                counter += 1;
+                debug!("{}: {:?}", counter, event);
                 if let resphys::PhysicsEvent::CollisionStarted(
                     _moving,
                     other,

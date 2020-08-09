@@ -16,6 +16,7 @@ pub struct PhysicsWorld<T> {
     pub manifolds: Vec<ContactInfo>,
 
     pub(crate) events: Vec<PhysicsEvent<T>>,
+    removal_events: Vec<PhysicsEvent<T>>,
 }
 
 impl<T: Copy> PhysicsWorld<T> {
@@ -27,11 +28,12 @@ impl<T: Copy> PhysicsWorld<T> {
             collision_graph: CollisionGraph::with_capacity(128, 16),
             manifolds: Vec::with_capacity(128),
             events: Vec::with_capacity(16),
+            removal_events: Vec::with_capacity(8),
         }
     }
 
-    /// Adds the new collider to the physics engine and returns it's unique handle.
-    /// If body isn't valid returns None.
+    /// Adds the new collider to the physics engine and returns it's unique handle.   
+    /// If Body isn't valid returns `None`.
     pub fn add_collider(&mut self, collider: Collider<T>) -> Option<ColliderHandle> {
         let body = self.bodies.get_mut(collider.owner.0)?;
         let key = self.colliders.insert(collider);
@@ -40,15 +42,30 @@ impl<T: Copy> PhysicsWorld<T> {
         Some(ColliderHandle(key))
     }
     /// Panics if there's no collider associated with the handle.  
-    /// Currently if a `Collider` is removed no CollisionEnded event gets sent.  
-    /// The behavior might change in the future.
+    /// When collider has active collisions/overlaps the Ended event is scheduled to be sent next frame.
     pub fn remove_collider(&mut self, handle: ColliderHandle) {
         let collider = self.colliders.remove(handle.0);
-        self.collision_graph.remove_node(handle.0);
+        let colliders = &mut self.colliders;
+        let collision_graph = &mut self.collision_graph;
+        let removal_events = &mut self.removal_events;
+
+        // schedule collision/overlap ended events
+        let node_index = collision_graph.get_node_index(handle.0);
+        for node_index_other in collision_graph.src.neighbors(node_index) {
+            let handle_other = *collision_graph
+                .src
+                .node_weight(node_index_other)
+                .expect("remove_collider: other node missing");
+            let collider_other = &colliders[handle_other];
+            let event = PhysicsEvent::new(handle.0, &collider, handle_other, collider_other)
+                .into_finished();
+            removal_events.push(event);
+        }
+        collision_graph.remove_node(handle.0);
 
         // if owner doesn't exist it's assumed both collider and body are getting removed
         if let Some(body) = self.bodies.get_mut(collider.owner.0) {
-            // after it gets onto stable: body.colliders.remove_item(handle);
+            //TODO: after it gets onto stable: body.colliders.remove_item(handle);
             let index = body
                 .colliders
                 .iter()
@@ -60,14 +77,15 @@ impl<T: Copy> PhysicsWorld<T> {
                 None =>
                 {
                     #[cfg(debug)]
-                    panic!("Body didn't know about this collider")
+                    panic!(
+                        "Body {:?} didn't know about {:?} collider",
+                        collider.owner.0, handle
+                    )
                 }
             }
         }
-        // TODO: Consider collision ended event during next step
-        // another consideration is letting the user get a list of colliding colliders
-        // and letting them handle it themselves prior to removal
     }
+
     pub fn get_collider(&self, handle: ColliderHandle) -> Option<&Collider<T>> {
         self.colliders.get(handle.0)
     }
@@ -82,8 +100,8 @@ impl<T: Copy> PhysicsWorld<T> {
     }
 
     /// Panics if there's no body associated with the handle.  
-    /// Currently if a body is removed no CollisionEnded event gets sent for the colliders.  
-    /// The behavior might change in the future.
+    /// All associated colliders are also removed.
+    /// When any collider has active collisions/overlaps the Ended event is scheduled to be sent next frame.
     pub fn remove_body(&mut self, handle: BodyHandle) {
         let body = self.bodies.remove(handle.0);
         for collider_handle in body.colliders.into_iter() {
@@ -103,6 +121,7 @@ impl<T: Copy> PhysicsWorld<T> {
     pub fn step(&mut self, dt: f32) {
         self.manifolds.clear();
         self.events.clear();
+        self.events.append(&mut self.removal_events);
         let bodies = &mut self.bodies;
         let colliders = &mut self.colliders;
         let manifolds = &mut self.manifolds;

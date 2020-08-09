@@ -26,6 +26,10 @@ impl CollisionGraph {
         self.binding.insert(handle, node_id);
     }
 
+    pub fn get_node_index(&self, handle: usize) -> NodeIndex<usize> {
+        *self.binding.get(&handle).unwrap()
+    }
+
     pub fn update_edge(&mut self, handle1: usize, handle2: usize) {
         let node_id1 = *self.binding.get(&handle1).unwrap();
         let node_id2 = *self.binding.get(&handle2).unwrap();
