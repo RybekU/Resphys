@@ -4,33 +4,21 @@ use glam::Vec2;
 
 /// Builder for the `Body`. Start with `new`, finish with `build`.
 #[derive(Debug, Clone)]
-pub struct BodyBuilder<T> {
-    pub shape: Shape,
+pub struct BodyDesc {
     pub position: Vec2,
 
     pub velocity: Vec2,
     pub status: BodyStatus,
     pub self_collide: bool,
-    pub state: ColliderState,
-
-    pub category_bits: u32,
-    pub mask_bits: u32,
-
-    pub user_tag: T,
 }
 
-impl<T: Copy> BodyBuilder<T> {
-    pub fn new(shape: Shape, position: Vec2, user_tag: T) -> Self {
+impl BodyDesc {
+    pub fn new() -> Self {
         Self {
-            shape,
-            position,
+            position: Vec2::zero(),
             velocity: Vec2::zero(),
             status: BodyStatus::Kinematic,
             self_collide: true,
-            state: ColliderState::Solid,
-            category_bits: 1,
-            mask_bits: u32::MAX,
-            user_tag,
         }
     }
     pub fn with_position(mut self, position: Vec2) -> Self {
@@ -45,12 +33,49 @@ impl<T: Copy> BodyBuilder<T> {
         self.status = BodyStatus::Static;
         self
     }
-    pub fn sensor(mut self) -> Self {
-        self.state = ColliderState::Sensor;
-        self
-    }
     pub fn self_collision(mut self, check: bool) -> Self {
         self.self_collide = check;
+        self
+    }
+    pub fn build(self) -> Body {
+        Body::new(self.position, self.velocity, self.status, self.self_collide)
+    }
+}
+
+// Builder for the `Collider`. Start with `new`, finish with `build`.
+#[derive(Debug, Clone)]
+pub struct ColliderDesc<T> {
+    pub shape: Shape,
+    pub offset: Vec2,
+    pub state: ColliderState,
+
+    pub category_bits: u32,
+    pub mask_bits: u32,
+
+    pub user_tag: T,
+}
+
+impl<T: Copy> ColliderDesc<T> {
+    pub fn new(shape: Shape, user_tag: T) -> Self {
+        Self {
+            shape,
+            offset: Vec2::zero(),
+            state: ColliderState::Solid,
+            category_bits: 1,
+            mask_bits: u32::MAX,
+            user_tag,
+        }
+    }
+    pub fn with_shape(mut self, shape: Shape) -> Self {
+        self.shape = shape;
+        self
+    }
+    pub fn with_offset(mut self, offset: Vec2) -> Self {
+        self.offset = offset;
+        self
+    }
+    pub fn sensor(mut self) -> Self {
+        self.state = ColliderState::Sensor;
         self
     }
     pub fn with_category(mut self, category_bits: u32) -> Self {
@@ -65,18 +90,15 @@ impl<T: Copy> BodyBuilder<T> {
         self.user_tag = user_tag;
         self
     }
-    pub fn build(self) -> (Body, Collider<T>) {
-        (
-            Body::new(self.position, self.velocity, self.status, self.self_collide),
-            Collider::new(
-                self.shape,
-                Vec2::zero(),
-                self.state,
-                self.category_bits,
-                self.mask_bits,
-                self.user_tag,
-                BodyHandle { 0: 0 },
-            ),
+    pub fn build(self, owner: BodyHandle) -> Collider<T> {
+        Collider::new(
+            self.shape,
+            self.offset,
+            self.state,
+            self.category_bits,
+            self.mask_bits,
+            self.user_tag,
+            owner,
         )
     }
 }

@@ -10,7 +10,7 @@ use log::debug;
 
 const FPS_INV: f32 = 1. / 60.;
 
-#[macroquad::main("Emitting events")]
+#[macroquad::main("Basic usage")]
 async fn main() {
     simple_logger::init().unwrap();
 
@@ -19,49 +19,50 @@ async fn main() {
     let rectangle = Shape::AABB(Vec2::new(36., 36.));
     let bar = Shape::AABB(Vec2::new(36., 8.));
 
-    let (body1, mut collider1) =
-        resphys::builder::BodyBuilder::new(rectangle, Vec2::new(360., 285.), TagType::Moving)
-            .with_velocity(Vec2::new(75., 48.))
-            .self_collision(false)
-            .build();
+    let body1 = resphys::builder::BodyDesc::new()
+        .with_position(Vec2::new(360., 285.))
+        .with_velocity(Vec2::new(75., 48.))
+        .self_collision(false)
+        .build();
+    let collider1 = resphys::builder::ColliderDesc::new(rectangle, TagType::Moving);
+
+    let collider1_2 = resphys::builder::ColliderDesc::new(bar, TagType::MovingSensor)
+        .with_offset(Vec2::new(0., 36. - 8.))
+        .sensor();
+
     let body1_handle = physics.add_body(body1);
-    collider1.owner = body1_handle;
-    let mut collider1_2 = collider1.clone();
-    collider1_2.shape = bar;
-    collider1_2.offset = Vec2::new(0., 36. - 8.);
-    collider1_2.state = ColliderState::Sensor;
-    collider1_2.user_tag = TagType::MovingSensor;
-    physics.add_collider(collider1);
-    physics.add_collider(collider1_2);
 
-    let (body2, mut collider2) =
-        resphys::builder::BodyBuilder::new(rectangle, Vec2::new(450., 450.), TagType::Collidable)
-            .make_static()
-            .build();
+    physics.add_collider(collider1.build(body1_handle));
+    physics.add_collider(collider1_2.build(body1_handle));
+
+    let body2 = resphys::builder::BodyDesc::new()
+        .with_position(Vec2::new(450., 450.))
+        .make_static()
+        .build();
+    let collider2 = resphys::builder::ColliderDesc::new(rectangle, TagType::Collidable);
+    let collider2_2 = resphys::builder::ColliderDesc::new(rectangle, TagType::Collidable)
+        .with_offset(Vec2::new(0., 80.))
+        .sensor();
+
     let body2_handle = physics.add_body(body2);
-    collider2.owner = body2_handle;
-    let mut collider2_2 = collider2.clone();
-    collider2_2.offset = Vec2::new(0., 80.);
-    collider2_2.state = ColliderState::Sensor;
-    physics.add_collider(collider2);
-    physics.add_collider(collider2_2);
+    physics.add_collider(collider2.build(body2_handle));
+    physics.add_collider(collider2_2.build(body2_handle));
 
-    let (body3, mut collider3) =
-        resphys::builder::BodyBuilder::new(rectangle, Vec2::new(600., 360.), TagType::Collidable)
-            .make_static()
-            .build();
+    let body3 = resphys::builder::BodyDesc::new()
+        .with_position(Vec2::new(600., 360.))
+        .make_static()
+        .build();
+    let collider3 = resphys::builder::ColliderDesc::new(rectangle, TagType::Collidable);
     let body3_handle = physics.add_body(body3);
-    collider3.owner = body3_handle;
-    physics.add_collider(collider3);
+    physics.add_collider(collider3.build(body3_handle));
 
-    let (body4, mut collider4) =
-        resphys::builder::BodyBuilder::new(rectangle, Vec2::new(375., 375.), TagType::Sensor)
-            .make_static()
-            .sensor()
-            .build();
+    let body4 = resphys::builder::BodyDesc::new()
+        .with_position(Vec2::new(375., 375.))
+        .make_static()
+        .build();
+    let collider4 = resphys::builder::ColliderDesc::new(rectangle, TagType::Sensor).sensor();
     let body4_handle = physics.add_body(body4);
-    collider4.owner = body4_handle;
-    physics.add_collider(collider4);
+    physics.add_collider(collider4.build(body4_handle));
 
     let mut remaining_time = 0.;
     let mut counter = 0;
