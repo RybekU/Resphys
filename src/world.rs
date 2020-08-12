@@ -1,5 +1,5 @@
 use super::collision::{CollisionGraph, ContactManifold};
-use super::event::PhysicsEvent;
+use super::event::ContactEvent;
 use super::object::{
     collided, collision_info, Body, BodyHandle, BodyStatus, Collider, ColliderHandle, ColliderState,
 };
@@ -15,8 +15,8 @@ pub struct PhysicsWorld<T> {
     pub collision_graph: CollisionGraph,
     pub manifolds: Vec<ContactInfo>,
 
-    pub(crate) events: Vec<PhysicsEvent<T>>,
-    removal_events: Vec<PhysicsEvent<T>>,
+    pub(crate) events: Vec<ContactEvent<T>>,
+    removal_events: Vec<ContactEvent<T>>,
 }
 
 impl<T: Copy> PhysicsWorld<T> {
@@ -32,9 +32,9 @@ impl<T: Copy> PhysicsWorld<T> {
         }
     }
 
-    /// Adds the new collider to the physics engine and returns it's unique handle.   
-    /// If Body isn't valid returns `None`.
-    pub fn add_collider(&mut self, collider: Collider<T>) -> Option<ColliderHandle> {
+    /// Inserts a new collider into the world if it's associated body exists.
+    /// In the case where body doesn't exist returns `None`.
+    pub fn insert_collider(&mut self, collider: Collider<T>) -> Option<ColliderHandle> {
         let body = self.bodies.get_mut(collider.owner.0)?;
         let key = self.colliders.insert(collider);
         self.collision_graph.add_node(key);
@@ -57,7 +57,7 @@ impl<T: Copy> PhysicsWorld<T> {
                 .node_weight(node_index_other)
                 .expect("remove_collider: other node missing");
             let collider_other = &colliders[handle_other];
-            let event = PhysicsEvent::new(handle.0, &collider, handle_other, collider_other)
+            let event = ContactEvent::new(handle.0, &collider, handle_other, collider_other)
                 .into_finished();
             removal_events.push(event);
         }
@@ -93,8 +93,8 @@ impl<T: Copy> PhysicsWorld<T> {
         self.colliders.get_mut(handle.0)
     }
 
-    /// Adds a new body to the physics engine and returns it's unique handle.
-    pub fn add_body(&mut self, body: Body) -> BodyHandle {
+    /// Inserts a new body into the world and returns it's unique handle.
+    pub fn insert_body(&mut self, body: Body) -> BodyHandle {
         let key = self.bodies.insert(body);
         BodyHandle(key)
     }
@@ -114,7 +114,7 @@ impl<T: Copy> PhysicsWorld<T> {
     pub fn mut_body(&mut self, handle: BodyHandle) -> Option<&mut Body> {
         self.bodies.get_mut(handle.0)
     }
-    pub fn events(&self) -> &Vec<PhysicsEvent<T>> {
+    pub fn events(&self) -> &Vec<ContactEvent<T>> {
         &self.events
     }
 
@@ -239,7 +239,7 @@ fn detect_collision<T: Copy>(
     position2: Vec2,
     new_edge: &mut bool,
     manifolds: &mut Vec<ContactInfo>,
-    events: &mut Vec<PhysicsEvent<T>>,
+    events: &mut Vec<ContactEvent<T>>,
 ) -> bool {
     use ColliderState::*;
 
@@ -247,7 +247,7 @@ fn detect_collision<T: Copy>(
         (Solid, Solid) => {
             if let Some(manifold) = collision_info(collider1, position1, collider2, position2) {
                 if *new_edge {
-                    events.push(PhysicsEvent::CollisionStarted(
+                    events.push(ContactEvent::CollisionStarted(
                         ColliderHandle(h1),
                         ColliderHandle(h2),
                         collider1.user_tag,
@@ -258,7 +258,7 @@ fn detect_collision<T: Copy>(
                 false
             } else {
                 if !*new_edge {
-                    events.push(PhysicsEvent::CollisionEnded(
+                    events.push(ContactEvent::CollisionEnded(
                         ColliderHandle(h1),
                         ColliderHandle(h2),
                         collider1.user_tag,
@@ -271,7 +271,7 @@ fn detect_collision<T: Copy>(
         (Solid, Sensor) => {
             if collided(collider1, position1, collider2, position2) {
                 if *new_edge {
-                    events.push(PhysicsEvent::OverlapStarted(
+                    events.push(ContactEvent::OverlapStarted(
                         ColliderHandle(h1),
                         ColliderHandle(h2),
                         collider1.user_tag,
@@ -281,7 +281,7 @@ fn detect_collision<T: Copy>(
                 false
             } else {
                 if !*new_edge {
-                    events.push(PhysicsEvent::OverlapEnded(
+                    events.push(ContactEvent::OverlapEnded(
                         ColliderHandle(h1),
                         ColliderHandle(h2),
                         collider1.user_tag,
@@ -294,7 +294,7 @@ fn detect_collision<T: Copy>(
         (Sensor, Solid) => {
             if collided(collider1, position1, collider2, position2) {
                 if *new_edge {
-                    events.push(PhysicsEvent::OverlapStarted(
+                    events.push(ContactEvent::OverlapStarted(
                         ColliderHandle(h2),
                         ColliderHandle(h1),
                         collider2.user_tag,
@@ -304,7 +304,7 @@ fn detect_collision<T: Copy>(
                 false
             } else {
                 if !*new_edge {
-                    events.push(PhysicsEvent::OverlapEnded(
+                    events.push(ContactEvent::OverlapEnded(
                         ColliderHandle(h2),
                         ColliderHandle(h1),
                         collider2.user_tag,
@@ -317,7 +317,7 @@ fn detect_collision<T: Copy>(
         (Sensor, Sensor) => {
             if collided(collider1, position1, collider2, position2) {
                 if *new_edge {
-                    events.push(PhysicsEvent::OverlapStarted(
+                    events.push(ContactEvent::OverlapStarted(
                         ColliderHandle(h1),
                         ColliderHandle(h2),
                         collider1.user_tag,
@@ -327,7 +327,7 @@ fn detect_collision<T: Copy>(
                 false
             } else {
                 if !*new_edge {
-                    events.push(PhysicsEvent::OverlapEnded(
+                    events.push(ContactEvent::OverlapEnded(
                         ColliderHandle(h1),
                         ColliderHandle(h2),
                         collider1.user_tag,

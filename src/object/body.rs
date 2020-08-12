@@ -15,7 +15,7 @@ pub struct Body {
     pub status: BodyStatus,
     /// Whether colliders of the same body should collide
     pub self_collide: bool,
-    // list of colliders belonging to body allowing quick access
+    // cached list of colliders belonging to body
     pub(crate) colliders: Vec<ColliderHandle>,
 }
 
@@ -31,16 +31,16 @@ impl Body {
     }
 }
 
-/// Unique identifier of an object stored in the world.
-/// If object gets removed the identifier will be reused.
+/// Unique identifier of a body stored in the world.
+/// If it gets removed the identifier will be reused.
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BodyHandle(pub usize);
 
-/// Status of the body, determines collision resolution and how it's affected by other bodies.
+/// Status of the body, determines how it's affected by other bodies.
 #[derive(Copy, Clone, Debug)]
 pub enum BodyStatus {
     /// Even when it moves it never collides with anything.
     Static,
-    /// Collides with both static and dynamic bodies.
+    /// Collides with both static and kinematic bodies.
     Kinematic,
 }

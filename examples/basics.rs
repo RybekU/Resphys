@@ -30,10 +30,10 @@ async fn main() {
         .with_offset(Vec2::new(0., 36. - 8.))
         .sensor();
 
-    let body1_handle = physics.add_body(body1);
+    let body1_handle = physics.insert_body(body1);
 
-    physics.add_collider(collider1.build(body1_handle));
-    physics.add_collider(collider1_2.build(body1_handle));
+    physics.insert_collider(collider1.build(body1_handle));
+    physics.insert_collider(collider1_2.build(body1_handle));
 
     let body2 = resphys::builder::BodyDesc::new()
         .with_position(Vec2::new(450., 450.))
@@ -44,25 +44,25 @@ async fn main() {
         .with_offset(Vec2::new(0., 80.))
         .sensor();
 
-    let body2_handle = physics.add_body(body2);
-    physics.add_collider(collider2.build(body2_handle));
-    physics.add_collider(collider2_2.build(body2_handle));
+    let body2_handle = physics.insert_body(body2);
+    physics.insert_collider(collider2.build(body2_handle));
+    physics.insert_collider(collider2_2.build(body2_handle));
 
     let body3 = resphys::builder::BodyDesc::new()
         .with_position(Vec2::new(600., 360.))
         .make_static()
         .build();
     let collider3 = resphys::builder::ColliderDesc::new(rectangle, TagType::Collidable);
-    let body3_handle = physics.add_body(body3);
-    physics.add_collider(collider3.build(body3_handle));
+    let body3_handle = physics.insert_body(body3);
+    physics.insert_collider(collider3.build(body3_handle));
 
     let body4 = resphys::builder::BodyDesc::new()
         .with_position(Vec2::new(375., 375.))
         .make_static()
         .build();
     let collider4 = resphys::builder::ColliderDesc::new(rectangle, TagType::Sensor).sensor();
-    let body4_handle = physics.add_body(body4);
-    physics.add_collider(collider4.build(body4_handle));
+    let body4_handle = physics.insert_body(body4);
+    physics.insert_collider(collider4.build(body4_handle));
 
     let mut remaining_time = 0.;
     let mut counter = 0;
@@ -75,7 +75,7 @@ async fn main() {
             for event in physics.events().iter() {
                 counter += 1;
                 debug!("{}: {:?}", counter, event);
-                if let resphys::PhysicsEvent::CollisionStarted(
+                if let resphys::ContactEvent::CollisionStarted(
                     _moving,
                     other,
                     TagType::MovingSensor,
@@ -84,7 +84,7 @@ async fn main() {
                 {
                     to_remove.push(*other);
                 }
-                if let resphys::PhysicsEvent::OverlapStarted(
+                if let resphys::ContactEvent::OverlapStarted(
                     other,
                     _moving,
                     _any,

@@ -2,13 +2,10 @@ use super::super::collision::{self, ContactManifold, Shape};
 use super::body::BodyHandle;
 use glam::Vec2;
 
-// Body has position, velocity, body type
-// Collider has everything else
-
-/// Describes a collider in shape of `Shape`. Attached to a body.
+/// Describes a collider in the shape of `Shape`. Attached to a body.
 #[derive(Clone, Debug)]
 pub struct Collider<T> {
-    ///
+    /// Currently the only shape is `AABB`
     pub shape: Shape,
     /// Offset from the body's position, 0 for centered
     pub offset: Vec2,
@@ -46,7 +43,7 @@ impl<T> Collider<T> {
     }
 }
 
-/// Boolean test whether two bodies collided.
+/// Boolean test whether two `Colliders` collided.
 pub fn collided<T>(
     collider1: &Collider<T>,
     position1: Vec2,
@@ -64,7 +61,7 @@ pub fn collided<T>(
     }
 }
 
-/// Generates a ContactManifold if two bodies collided.
+/// Generates a ContactManifold if two `Colliders` collided.
 pub fn collision_info<T>(
     collider1: &Collider<T>,
     position1: Vec2,
@@ -85,12 +82,12 @@ pub fn collision_info<T>(
     }
 }
 
-/// Unique identifier of an object stored in the world.
-/// If object gets removed the identifier will be reused.
+/// Unique identifier of a collider stored in the world.
+/// If it gets removed the identifier will be reused.
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ColliderHandle(pub usize);
 
-/// State of the body, determines collision resolution and types of events sent.
+/// State of the collider, determines default collision resolution and types of events sent.
 #[derive(Copy, Clone, Debug)]
 pub enum ColliderState {
     /// Solid body resolves collision.

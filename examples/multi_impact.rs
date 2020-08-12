@@ -18,16 +18,16 @@ async fn main() {
         .build();
     let collider1 = resphys::builder::ColliderDesc::new(rectangle, TagType::Moving);
 
-    let handle1 = physics.add_body(body1);
-    physics.add_collider(collider1.build(handle1));
+    let handle1 = physics.insert_body(body1);
+    physics.insert_collider(collider1.build(handle1));
 
     let body2 = resphys::builder::BodyDesc::new()
         .with_position(Vec2::new(340., 450.))
         .make_static()
         .build();
     let collider2 = resphys::builder::ColliderDesc::new(rectangle, TagType::Collidable);
-    let handle2 = physics.add_body(body2);
-    physics.add_collider(collider2.build(handle2));
+    let handle2 = physics.insert_body(body2);
+    physics.insert_collider(collider2.build(handle2));
 
     let body3 = resphys::builder::BodyDesc::new()
         .with_position(Vec2::new(360., 450.))
@@ -35,8 +35,8 @@ async fn main() {
         .build();
     let collider3 = resphys::builder::ColliderDesc::new(rectangle, TagType::Collidable);
 
-    let handle3 = physics.add_body(body3);
-    physics.add_collider(collider3.build(handle3));
+    let handle3 = physics.insert_body(body3);
+    physics.insert_collider(collider3.build(handle3));
 
     let mut remaining_time = 0.;
     loop {

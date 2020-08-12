@@ -3,7 +3,7 @@ use petgraph::graph::{NodeIndex, UnGraph};
 
 type HandleNodeMap = FxHashMap<usize, NodeIndex<usize>>;
 
-/// Structure for storing informations about the current collision.  
+/// Structure for storing informations about the active collisions.  
 /// Currently unaware of anything besides the handles that collide or whether the collision started this frame.  
 /// Stores result of broadphase that narrowphase should use.
 pub struct CollisionGraph {
