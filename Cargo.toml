@@ -16,4 +16,5 @@ glam = {version="0.9.2", features = ["mint"]}
 log = "0.4.11"
 
 [dev-dependencies]
-macroquad = "0.2.8"
+macroquad = "0.2.9"
+simple_logger = { version = "1.6"}
