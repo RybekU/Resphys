@@ -1,4 +1,4 @@
-pub use super::super::collision::Shape;
+pub use super::super::collision::AABB;
 pub use super::{Body, BodyHandle, BodyStatus, Collider, ColliderState};
 use glam::Vec2;
 
@@ -45,7 +45,7 @@ impl BodyDesc {
 // Builder for the `Collider`. Start with `new`, finish with `build`.
 #[derive(Debug, Clone)]
 pub struct ColliderDesc<T> {
-    pub shape: Shape,
+    pub shape: AABB,
     pub offset: Vec2,
     pub state: ColliderState,
 
@@ -56,7 +56,7 @@ pub struct ColliderDesc<T> {
 }
 
 impl<T: Copy> ColliderDesc<T> {
-    pub fn new(shape: Shape, user_tag: T) -> Self {
+    pub fn new(shape: AABB, user_tag: T) -> Self {
         Self {
             shape,
             offset: Vec2::zero(),
@@ -66,7 +66,7 @@ impl<T: Copy> ColliderDesc<T> {
             user_tag,
         }
     }
-    pub fn with_shape(mut self, shape: Shape) -> Self {
+    pub fn with_shape(mut self, shape: AABB) -> Self {
         self.shape = shape;
         self
     }

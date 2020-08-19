@@ -1,4 +1,4 @@
-use super::super::collision::{self, ContactManifold, Shape};
+use super::super::collision::{self, ContactManifold, AABB};
 use super::body::BodyHandle;
 use glam::Vec2;
 
@@ -6,7 +6,7 @@ use glam::Vec2;
 #[derive(Clone, Debug)]
 pub struct Collider<T> {
     /// Currently the only shape is `AABB`
-    pub shape: Shape,
+    pub shape: AABB,
     /// Offset from the body's position, 0 for centered
     pub offset: Vec2,
     /// Whether to treat the body as physical or not
@@ -23,7 +23,7 @@ pub struct Collider<T> {
 
 impl<T> Collider<T> {
     pub fn new(
-        shape: Shape,
+        shape: AABB,
         offset: Vec2,
         state: ColliderState,
         category_bits: u32,
@@ -50,15 +50,15 @@ pub fn collided<T>(
     collider2: &Collider<T>,
     position2: Vec2,
 ) -> bool {
-    use Shape::*;
     // apply offset
     let position1 = position1 + collider1.offset;
     let position2 = position2 + collider2.offset;
-    match (collider1.shape, collider2.shape) {
-        (AABB(half_extents1), AABB(half_extents2)) => {
-            collision::collision_aabb_aabb(position1, half_extents1, position2, half_extents2)
-        }
-    }
+    collision::collision_aabb_aabb(
+        position1,
+        collider1.shape.half_exts,
+        position2,
+        collider2.shape.half_exts,
+    )
 }
 
 /// Generates a ContactManifold if two `Colliders` collided.
@@ -68,18 +68,15 @@ pub fn collision_info<T>(
     collider2: &Collider<T>,
     position2: Vec2,
 ) -> Option<ContactManifold> {
-    use Shape::*;
     // apply offset
     let position1 = position1 + collider1.offset;
     let position2 = position2 + collider2.offset;
-    match (collider1.shape, collider2.shape) {
-        (AABB(half_extents1), AABB(half_extents2)) => collision::collision_aabb_aabb_manifold(
-            position1,
-            half_extents1,
-            position2,
-            half_extents2,
-        ),
-    }
+    collision::collision_aabb_aabb_manifold(
+        position1,
+        collider1.shape.half_exts,
+        position2,
+        collider2.shape.half_exts,
+    )
 }
 
 /// Unique identifier of a collider stored in the world.

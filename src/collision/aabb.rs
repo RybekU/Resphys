@@ -1,9 +1,9 @@
 use glam::Vec2;
 
-#[derive(Copy, Clone, Debug)]
-pub enum Shape {
-    /// stores the half extents
-    AABB(Vec2),
+#[derive(Default, Copy, Clone, Debug)]
+pub struct AABB {
+    /// half width, half height
+    pub half_exts: Vec2,
 }
 
 #[derive(Debug, Clone)]
@@ -23,31 +23,18 @@ impl Contact {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct ContactManifold {
-    pub contacts: [Option<Contact>; 2],
+    pub contact_x: Contact,
+    pub contact_y: Contact,
 }
 
 impl ContactManifold {
-    // pub fn from_contact(contact: Contact) -> Self {
-    //     Self{contacts: [Some(contact), None]}
-    // }
-    pub fn from_contacts(contact1: Contact, contact2: Contact) -> Self {
-        Self {
-            contacts: [Some(contact1), Some(contact2)],
-        }
-    }
     pub fn best_contact(&self) -> &Contact {
-        match &self.contacts {
-            [Some(contact1), Some(contact2)] => {
-                if contact1.depth < contact2.depth {
-                    &contact1
-                } else {
-                    &contact2
-                }
-            }
-            [Some(contact), None] => &contact,
-            _ => panic!("Generated empty contact manifold"),
+        if self.contact_x.depth < self.contact_y.depth {
+            &self.contact_x
+        } else {
+            &self.contact_y
         }
     }
 }
@@ -92,5 +79,8 @@ pub fn collision_aabb_aabb_manifold(
     let contact_point_y = Vec2::new(a_loc.x(), a_loc.y() + a_half_exts.y() * normal2.y());
     let contact2 = Contact::new(depth2, normal2, contact_point_y);
 
-    Some(ContactManifold::from_contacts(contact1, contact2))
+    Some(ContactManifold {
+        contact_x: contact1,
+        contact_y: contact2,
+    })
 }

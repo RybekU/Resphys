@@ -1,6 +1,6 @@
 use glam::Vec2;
 use macroquad::*;
-use resphys::{Collider, ColliderState, Shape};
+use resphys::{Collider, ColliderState, AABB};
 
 // A test if collision gets resolved properly even if multiple impacts happen
 
@@ -10,7 +10,9 @@ const FPS_INV: f32 = 1. / 60.;
 async fn main() {
     let mut physics = resphys::PhysicsWorld::<TagType>::new();
 
-    let rectangle = Shape::AABB(Vec2::new(36., 36.));
+    let rectangle = AABB {
+        half_exts: Vec2::new(36., 36.),
+    };
 
     let body1 = resphys::builder::BodyDesc::new()
         .with_position(Vec2::new(360., 0.))
@@ -71,7 +73,7 @@ fn draw_collider(collider: &Collider<TagType>, position: Vec2) {
 
     color.0[3] = (0.3 * 255.) as u8;
     // This works because there's currently only AABB shape. Half extents.
-    let Shape::AABB(wh) = collider.shape;
+    let wh = collider.shape.half_exts;
     let x_pos = position.x() - wh.x() + collider.offset.x();
     let y_pos = position.y() - wh.y() + collider.offset.y();
     draw_rectangle(x_pos, y_pos, wh.x() * 2., wh.y() * 2., color);
