@@ -17,6 +17,8 @@ pub struct Body {
     pub self_collide: bool,
     // cached list of colliders belonging to body
     pub(crate) colliders: Vec<ColliderHandle>,
+    // the distance body will want to cover during the next step
+    pub(crate) movement: Vec2,
 }
 
 impl Body {
@@ -27,6 +29,7 @@ impl Body {
             status,
             self_collide,
             colliders: Vec::new(),
+            movement: Vec2::zero(),
         }
     }
 }

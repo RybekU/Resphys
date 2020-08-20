@@ -44,7 +44,7 @@ impl<T> Collider<T> {
 }
 
 /// Boolean test whether two `Colliders` collided.
-pub fn collided<T>(
+pub fn is_colliding<T>(
     collider1: &Collider<T>,
     position1: Vec2,
     collider2: &Collider<T>,
@@ -60,6 +60,24 @@ pub fn collided<T>(
         collider2.shape.half_exts,
     )
 }
+
+pub fn is_penetrating<T>(
+    collider1: &Collider<T>,
+    position1: Vec2,
+    collider2: &Collider<T>,
+    position2: Vec2,
+    tolerance: f32,
+) -> bool {
+    let position1 = position1 + collider1.offset;
+    let position2 = position2 + collider2.offset;
+    collision::collision_aabb_aabb(
+        position1,
+        collider1.shape.half_exts - Vec2::splat(tolerance),
+        position2,
+        collider2.shape.half_exts,
+    )
+}
+
 
 /// Generates a ContactManifold if two `Colliders` collided.
 pub fn collision_info<T>(
