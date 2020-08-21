@@ -51,7 +51,7 @@ pub fn collision_aabb_aabb(a_loc: Vec2, a_half_exts: Vec2, b_loc: Vec2, b_half_e
     let d2 = b_max.y() < a_min.y();
     let d3 = a_max.y() < b_min.y();
 
-    return !(d0 || d1 || d2 || d3);
+    !(d0 || d1 || d2 || d3)
 }
 
 // contact points aren't precise - they are currently in the middle on the correct side

@@ -1,7 +1,8 @@
 use super::collision::{CollisionGraph, ContactManifold};
 use super::event::ContactEvent;
 use super::object::{
-    is_colliding, is_penetrating, collision_info, Body, BodyHandle, BodyStatus, Collider, ColliderHandle, ColliderState,
+    collision_info, is_colliding, is_penetrating, Body, BodyHandle, BodyStatus, Collider,
+    ColliderHandle, ColliderState,
 };
 use glam::Vec2;
 use slab::Slab;
@@ -17,6 +18,13 @@ pub struct PhysicsWorld<T> {
 
     pub(crate) events: Vec<ContactEvent<T>>,
     removal_events: Vec<ContactEvent<T>>,
+    body_handles: Vec<usize>,
+}
+
+impl<T: Copy> Default for PhysicsWorld<T> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<T: Copy> PhysicsWorld<T> {
@@ -29,6 +37,7 @@ impl<T: Copy> PhysicsWorld<T> {
             manifolds: Vec::with_capacity(128),
             events: Vec::with_capacity(16),
             removal_events: Vec::with_capacity(8),
+            body_handles: Vec::with_capacity(16),
         }
     }
 
@@ -44,6 +53,10 @@ impl<T: Copy> PhysicsWorld<T> {
     /// Panics if there's no collider associated with the handle.  
     /// When collider has active collisions/overlaps the Ended event is scheduled to be sent next frame.
     pub fn remove_collider(&mut self, handle: ColliderHandle) {
+        #[cfg(debug_assertions)]
+        if self.colliders.get(handle.0).is_none() {
+            panic!("Trying to delete nonexistent collider {:?}", handle)
+        }
         let collider = self.colliders.remove(handle.0);
         let colliders = &mut self.colliders;
         let collision_graph = &mut self.collision_graph;
@@ -70,18 +83,14 @@ impl<T: Copy> PhysicsWorld<T> {
                 .colliders
                 .iter()
                 .position(|owned_handle| *owned_handle == handle);
-            match index {
-                Some(index) => {
-                    body.colliders.swap_remove(index);
-                }
-                None =>
-                {
-                    #[cfg(debug)]
-                    panic!(
-                        "Body {:?} didn't know about {:?} collider",
-                        collider.owner.0, handle
-                    )
-                }
+            if let Some(index) = index {
+                body.colliders.swap_remove(index);
+            } else {
+                #[cfg(debug_assertions)]
+                panic!(
+                    "Body {:?} didn't know about {:?} collider",
+                    collider.owner.0, handle
+                )
             }
         }
     }
@@ -103,6 +112,10 @@ impl<T: Copy> PhysicsWorld<T> {
     /// All associated colliders are also removed.
     /// When any collider has active collisions/overlaps the Ended event is scheduled to be sent next frame.
     pub fn remove_body(&mut self, handle: BodyHandle) {
+        #[cfg(debug_assertions)]
+        if self.bodies.get(handle.0).is_none() {
+            panic!("Trying to delete nonexistent body {:?}", handle)
+        }
         let body = self.bodies.remove(handle.0);
         for collider_handle in body.colliders.into_iter() {
             self.remove_collider(collider_handle);
@@ -122,25 +135,30 @@ impl<T: Copy> PhysicsWorld<T> {
         self.manifolds.clear();
         self.events.clear();
         self.events.append(&mut self.removal_events);
+        self.body_handles.clear();
 
         let bodies = &mut self.bodies;
         let colliders = &mut self.colliders;
         let manifolds = &mut self.manifolds;
         let collision_graph = &mut self.collision_graph;
         let events = &mut self.events;
+        let body_handles = &mut self.body_handles;
 
-        // compute the new position for every body
-       for (_, body) in bodies.iter_mut() {
+        body_handles.extend(bodies.iter().map(|(h, _)| h));
+
+        // compute the new maximum movement for every body
+        for (_, body) in bodies.iter_mut() {
             if let BodyStatus::Kinematic = body.status {
                 body.movement = body.velocity * dt;
             }
         }
 
-        step_x(bodies, colliders);
-        step_y(bodies, colliders, collision_graph);
+        step_x(bodies, colliders, body_handles);
+        step_y(bodies, colliders, collision_graph, body_handles);
 
+        // TODO: Don't reallocate
         let mut removed_edges = vec![];
-        // fake narrow-phase replacement
+        // collision event and contact information
         for edge_id in collision_graph.src.edge_indices() {
             let (node1_id, node2_id) = collision_graph.src.edge_endpoints(edge_id).unwrap();
             let handle1 = collision_graph.src[node1_id];
@@ -148,32 +166,37 @@ impl<T: Copy> PhysicsWorld<T> {
             let collider1 = &colliders[handle1];
             let collider2 = &colliders[handle2];
 
-            let edge_status = collision_graph.src.edge_weight_mut(edge_id).unwrap();
+            let new_edge = collision_graph.src.edge_weight_mut(edge_id).unwrap();
             let body1 = bodies
                 .get(collider1.owner.0)
                 .expect("Collider without a body");
             let body2 = bodies
                 .get(collider2.owner.0)
                 .expect("Collider without a body");
-            let remove_edge = detect_collision(
-                handle1,
+            let collided = detect_collision(
                 &collider1,
                 body1.position,
-                handle2,
                 &collider2,
                 body2.position,
-                edge_status,
                 manifolds,
-                events,
             );
-            if remove_edge {
-                removed_edges.push((node1_id, node2_id));
+            if collided && *new_edge {
+                events.push(ContactEvent::new(handle1, collider1, handle2, collider2));
             }
+            if !collided {
+                removed_edges.push((node1_id, node2_id));
+                if !*new_edge {
+                    events.push(
+                        ContactEvent::new(handle1, collider1, handle2, collider2).into_finished(),
+                    );
+                }
+            }
+            *new_edge = false;
         }
 
         removed_edges.into_iter().for_each(|(node1_id, node2_id)| {
             if let Some(edge_id) = collision_graph.src.find_edge(node1_id, node2_id) {
-                if let None = collision_graph.src.remove_edge(edge_id) {
+                if collision_graph.src.remove_edge(edge_id).is_none() {
                     log::debug!("CollisionGraph error: Invalid edge removed")
                 }
             } else {
@@ -185,150 +208,40 @@ impl<T: Copy> PhysicsWorld<T> {
             }
         });
 
-        // resolve collisions TODO: resolve multiple collisions for one body
         for (h1, _h2, manifold) in manifolds.iter() {
             let body = bodies.get_mut(*h1).expect("Body missing post collision");
             let contact = manifold.best_contact();
-            body.position -= contact.normal * contact.depth;
+            // body.position -= contact.normal * contact.depth;
 
             *body.velocity.x_mut() *= contact.normal.y().abs();
             *body.velocity.y_mut() *= contact.normal.x().abs();
         }
     }
-
-    // pub fn step_old(&mut self, dt: f32) {
-    //     self.manifolds.clear();
-    //     self.events.clear();
-    //     self.events.append(&mut self.removal_events);
-    //     let bodies = &mut self.bodies;
-    //     let colliders = &mut self.colliders;
-    //     let manifolds = &mut self.manifolds;
-    //     let collision_graph = &mut self.collision_graph;
-    //     let events = &mut self.events;
-
-    //     // apply velocity for every body
-    //     for (_, body) in bodies.iter_mut() {
-    //         if let BodyStatus::Kinematic = body.status {
-    //             body.position += body.velocity * dt;
-    //         }
-    //     }
-
-    //     // TODO: Real broad phase
-    //     // Makeshift broad-phase
-    //     for (h1, collider1) in colliders.iter() {
-    //         let body1 = bodies
-    //             .get(collider1.owner.0)
-    //             .expect("Collider without a body");
-    //         if let BodyStatus::Static = body1.status {
-    //             continue;
-    //         }
-
-    //         for (h2, collider2) in colliders.iter() {
-    //             if h1 == h2 {
-    //                 continue;
-    //             }
-    //             // only bodies with matching masks can collide
-    //             let category_mismatch = ((collider1.category_bits & collider2.mask_bits) == 0)
-    //                 || ((collider2.category_bits & collider1.mask_bits) == 0);
-    //             if category_mismatch {
-    //                 continue;
-    //             }
-
-    //             // don't collide with same body if it's disabled
-    //             if collider1.owner.0 == collider2.owner.0 && !body1.self_collide {
-    //                 continue;
-    //             }
-
-    //             let body2 = bodies
-    //                 .get(collider2.owner.0)
-    //                 .expect("Collider without a body");
-
-    //             if collided(collider1, body1.position, collider2, body2.position) {
-    //                 collision_graph.update_edge(h1, h2);
-    //             }
-    //         }
-    //     }
-
-    //     let mut removed_edges = vec![];
-    //     // fake narrow-phase replacement
-    //     for edge_id in collision_graph.src.edge_indices() {
-    //         let (node1_id, node2_id) = collision_graph.src.edge_endpoints(edge_id).unwrap();
-    //         let handle1 = collision_graph.src[node1_id];
-    //         let handle2 = collision_graph.src[node2_id];
-    //         let collider1 = &colliders[handle1];
-    //         let collider2 = &colliders[handle2];
-
-    //         let edge_status = collision_graph.src.edge_weight_mut(edge_id).unwrap();
-    //         let body1 = bodies
-    //             .get(collider1.owner.0)
-    //             .expect("Collider without a body");
-    //         let body2 = bodies
-    //             .get(collider2.owner.0)
-    //             .expect("Collider without a body");
-    //         let remove_edge = detect_collision(
-    //             handle1,
-    //             &collider1,
-    //             body1.position,
-    //             handle2,
-    //             &collider2,
-    //             body2.position,
-    //             edge_status,
-    //             manifolds,
-    //             events,
-    //         );
-    //         if remove_edge {
-    //             removed_edges.push((node1_id, node2_id));
-    //         }
-    //     }
-
-    //     removed_edges.into_iter().for_each(|(node1_id, node2_id)| {
-    //         if let Some(edge_id) = collision_graph.src.find_edge(node1_id, node2_id) {
-    //             if let None = collision_graph.src.remove_edge(edge_id) {
-    //                 log::debug!("CollisionGraph error: Invalid edge removed")
-    //             }
-    //         } else {
-    //             log::debug!(
-    //                 "CollisionGraph error: No edge between {:?} and {:?}",
-    //                 node1_id,
-    //                 node2_id
-    //             );
-    //         }
-    //     });
-
-    //     // resolve collisions TODO: resolve multiple collisions for one body
-    //     for (h1, _h2, manifold) in manifolds.iter() {
-    //         let body = bodies.get_mut(*h1).expect("Body missing post collision");
-    //         let contact = manifold.best_contact();
-    //         body.position -= contact.normal * contact.depth;
-
-    //         *body.velocity.x_mut() *= contact.normal.y().abs();
-    //         *body.velocity.y_mut() *= contact.normal.x().abs();
-    //     }
-    // }
-
 }
 
-fn step_x<T>(bodies: &mut Slab<Body>, colliders: & Slab<Collider<T>>) {
-    // this part would improve by leaps with introduction of broad phase
-    for (h1, collider1) in colliders.iter() {
-        let mut new_x;
-        {
-            let body1 = bodies
-                .get(collider1.owner.0)
-                .expect("Collider without a body");
-            if let BodyStatus::Static = body1.status {
-                continue;
-            }
-            new_x = (body1.position+body1.movement).x();
-            let new_pos1 = Vec2::new(new_x, body1.position.y());
+fn step_x<T>(bodies: &mut Slab<Body>, colliders: &Slab<Collider<T>>, body_handles: &[usize]) {
+    for body1_handle in body_handles {
+        let body1 = bodies.get(*body1_handle).expect("Collider without a body");
+        let mut move_x = body1.movement.x();
+
+        if let BodyStatus::Static = body1.status {
+            continue;
+        }
+
+        for coll1_handle in &body1.colliders {
+            let collider1 = colliders
+                .get(coll1_handle.0)
+                .expect("Body cached nonexistent collider");
 
             // for x step we skip sensors completely
             if let ColliderState::Sensor = collider1.state {
                 continue;
             }
 
-            for (h2, collider2) in colliders.iter() {
-                if h1 == h2 {
+            // TODO: Broadphase scan just the neighbours
+            for (coll2_handle, collider2) in colliders.iter() {
+                // no collider colliding with itself
+                if coll1_handle.0 == coll2_handle {
                     continue;
                 }
 
@@ -337,15 +250,7 @@ fn step_x<T>(bodies: &mut Slab<Body>, colliders: & Slab<Collider<T>>) {
                     continue;
                 }
 
-                // only bodies with matching masks can collide
-                let category_mismatch = ((collider1.category_bits & collider2.mask_bits) == 0)
-                    || ((collider2.category_bits & collider1.mask_bits) == 0);
-                if category_mismatch {
-                    continue;
-                }
-
-                // don't collide with same body if it's disabled
-                if collider1.owner.0 == collider2.owner.0 && !body1.self_collide {
+                if !can_collide(body1, collider1, collider2) {
                     continue;
                 }
 
@@ -353,63 +258,67 @@ fn step_x<T>(bodies: &mut Slab<Body>, colliders: & Slab<Collider<T>>) {
                     .get(collider2.owner.0)
                     .expect("Collider without a body");
 
-                if is_penetrating(collider1, new_pos1, collider2, body2.position, 0.001) {
+                if is_penetrating(
+                    collider1,
+                    body1.position + Vec2::new(move_x, 0.),
+                    collider2,
+                    body2.position,
+                    0.001,
+                ) {
                     if body1.velocity.x() > 0. {
-                        new_x = new_x.min(body2.position.x() - collider1.offset.x() + collider2.offset.x() - collider2.shape.half_exts.x() - collider1.shape.half_exts.x());
-                    }
-                    else {
-                        new_x = new_x.max(body2.position.x() - collider1.offset.x() + collider2.offset.x() + collider2.shape.half_exts.x() + collider1.shape.half_exts.x());
+                        move_x = move_x.min(
+                            body2.position.x() - collider1.offset.x() + collider2.offset.x()
+                                - collider2.shape.half_exts.x()
+                                - collider1.shape.half_exts.x()
+                                - body1.position.x(),
+                        );
+                    } else {
+                        move_x = move_x.max(
+                            body2.position.x() - collider1.offset.x()
+                                + collider2.offset.x()
+                                + collider2.shape.half_exts.x()
+                                + collider1.shape.half_exts.x()
+                                - body1.position.x(),
+                        );
                     }
                 }
             }
         }
-        let body = bodies
-                .get_mut(collider1.owner.0)
-                .expect("Collider without a body");
-        body.movement.set_x(new_x - body.position.x());
-        // TODO: iterate this somewhere else so multiple colliders work properly
-        body.position.set_x(new_x);
+        let body1 = bodies
+            .get_mut(*body1_handle)
+            .expect("Collider without a body");
+        *body1.position.x_mut() += move_x;
     }
 }
 
-fn step_y<T>(bodies: &mut Slab<Body>, colliders: & Slab<Collider<T>>, collision_graph: &mut CollisionGraph) {
-    // this part would improve by leaps with introduction of broad phase
-    for (h1, collider1) in colliders.iter() {
-        let mut new_y;
-        {
-            let body1 = bodies
-                .get(collider1.owner.0)
-                .expect("Collider without a body");
-            if let BodyStatus::Static = body1.status {
-                continue;
-            }
-            new_y = (body1.position+body1.movement).y();
-            let new_pos1 = Vec2::new(body1.position.x(), new_y);
+fn step_y<T>(
+    bodies: &mut Slab<Body>,
+    colliders: &Slab<Collider<T>>,
+    collision_graph: &mut CollisionGraph,
+    body_handles: &[usize],
+) {
+    for body1_handle in body_handles {
+        let body1 = bodies.get(*body1_handle).expect("Collider without a body");
+        let mut move_y = body1.movement.y();
 
-            // for x step we skip sensors completely
-            if let ColliderState::Sensor = collider1.state {
-                continue;
-            }
+        if let BodyStatus::Static = body1.status {
+            continue;
+        }
 
-            for (h2, collider2) in colliders.iter() {
-                if h1 == h2 {
+        for coll1_handle in body1.colliders.iter() {
+            let coll1_handle = coll1_handle.0;
+            let collider1 = colliders
+                .get(coll1_handle)
+                .expect("Body cached nonexistent collider");
+
+            // TODO: Broadphase scan just the neighbours
+            for (coll2_handle, collider2) in colliders.iter() {
+                // no collider colliding with itself
+                if coll1_handle == coll2_handle {
                     continue;
                 }
 
-                // for x step we skip sensors completely
-                if let ColliderState::Sensor = collider2.state {
-                    continue;
-                }
-
-                // only bodies with matching masks can collide
-                let category_mismatch = ((collider1.category_bits & collider2.mask_bits) == 0)
-                    || ((collider2.category_bits & collider1.mask_bits) == 0);
-                if category_mismatch {
-                    continue;
-                }
-
-                // don't collide with same body if it's disabled
-                if collider1.owner.0 == collider2.owner.0 && !body1.self_collide {
+                if !can_collide(body1, collider1, collider2) {
                     continue;
                 }
 
@@ -417,172 +326,80 @@ fn step_y<T>(bodies: &mut Slab<Body>, colliders: & Slab<Collider<T>>, collision_
                     .get(collider2.owner.0)
                     .expect("Collider without a body");
 
-                if is_penetrating(collider1, new_pos1, collider2, body2.position, 0.001) {
-                    if body1.velocity.y() > 0. {
-                        new_y = new_y.min(body2.position.y() - collider1.offset.y() + collider2.offset.y() - collider2.shape.half_exts.y() - collider1.shape.half_exts.y());
+                if let (ColliderState::Solid, ColliderState::Solid) =
+                    (collider1.state, collider2.state)
+                {
+                    if is_penetrating(
+                        collider1,
+                        body1.position + Vec2::new(0., move_y),
+                        collider2,
+                        body2.position,
+                        0.001,
+                    ) {
+                        if body1.velocity.y() > 0. {
+                            move_y = move_y.min(
+                                body2.position.y() - collider1.offset.y() + collider2.offset.y()
+                                    - collider2.shape.half_exts.y()
+                                    - collider1.shape.half_exts.y()
+                                    - body1.position.y(),
+                            );
+                        } else {
+                            move_y = move_y.max(
+                                body2.position.y() - collider1.offset.y()
+                                    + collider2.offset.y()
+                                    + collider2.shape.half_exts.y()
+                                    + collider1.shape.half_exts.y()
+                                    - body1.position.y(),
+                            );
+                        }
                     }
-                    else {
-                        new_y = new_y.max(body2.position.y() - collider1.offset.y() + collider2.offset.y() + collider2.shape.half_exts.y() + collider1.shape.half_exts.y());
-                    }
                 }
-            }
-        }
-        let body = bodies
-                .get_mut(collider1.owner.0)
-                .expect("Collider without a body");
-        body.movement.set_y(new_y - body.position.y());
-        body.position.set_y(new_y);
-    }
-}
-
-fn fake_step_y<T>(bodies: &mut Slab<Body>, colliders: & Slab<Collider<T>>, collision_graph: &mut CollisionGraph) {
-
-        // TODO: Real broad phase
-        // Makeshift broad-phase
-        for (h1, collider1) in colliders.iter() {
-            let body1 = bodies
-                .get(collider1.owner.0)
-                .expect("Collider without a body");
-            if let BodyStatus::Static = body1.status {
-                continue;
-            }
-
-            for (h2, collider2) in colliders.iter() {
-                if h1 == h2 {
-                    continue;
-                }
-                // only bodies with matching masks can collide
-                let category_mismatch = ((collider1.category_bits & collider2.mask_bits) == 0)
-                    || ((collider2.category_bits & collider1.mask_bits) == 0);
-                if category_mismatch {
-                    continue;
-                }
-
-                // don't collide with same body if it's disabled
-                if collider1.owner.0 == collider2.owner.0 && !body1.self_collide {
-                    continue;
-                }
-                
-                let body2 = bodies
-                    .get(collider2.owner.0)
-                    .expect("Collider without a body");
-
                 if is_colliding(collider1, body1.position, collider2, body2.position) {
-                    collision_graph.update_edge(h1, h2);
+                    collision_graph.update_edge(coll1_handle, coll2_handle);
                 }
             }
         }
+        let body1 = bodies
+            .get_mut(*body1_handle)
+            .expect("Collider without a body");
+        *body1.position.y_mut() += move_y;
+    }
+}
+
+fn can_collide<T>(body1: &Body, collider1: &Collider<T>, collider2: &Collider<T>) -> bool {
+    let category_mismatch = ((collider1.category_bits & collider2.mask_bits) == 0)
+        || ((collider2.category_bits & collider1.mask_bits) == 0);
+    // only colliders with matching masks can collide
+    if category_mismatch {
+        return false;
+    }
+
+    // don't collide with same body if it's disabled
+    if collider1.owner.0 == collider2.owner.0 && !body1.self_collide {
+        return false;
+    }
+    true
 }
 
 // Makeshift function for collision detection
+// returns whether there was a collision or not
 fn detect_collision<T: Copy>(
-    h1: usize,
     collider1: &Collider<T>,
     position1: Vec2,
-    h2: usize,
     collider2: &Collider<T>,
     position2: Vec2,
-    new_edge: &mut bool,
     manifolds: &mut Vec<ContactInfo>,
-    events: &mut Vec<ContactEvent<T>>,
 ) -> bool {
     use ColliderState::*;
 
-    let remove_edge = match (&collider1.state, &collider2.state) {
-        (Solid, Solid) => {
-            if let Some(manifold) = collision_info(collider1, position1, collider2, position2) {
-                if *new_edge {
-                    events.push(ContactEvent::CollisionStarted(
-                        ColliderHandle(h1),
-                        ColliderHandle(h2),
-                        collider1.user_tag,
-                        collider2.user_tag,
-                    ));
-                }
-                manifolds.push((collider1.owner.0, collider2.owner.0, manifold));
-                false
-            } else {
-                if !*new_edge {
-                    events.push(ContactEvent::CollisionEnded(
-                        ColliderHandle(h1),
-                        ColliderHandle(h2),
-                        collider1.user_tag,
-                        collider2.user_tag,
-                    ));
-                }
-                true
-            }
+    if let (Solid, Solid) = (collider1.state, collider2.state) {
+        if let Some(manifold) = collision_info(collider1, position1, collider2, position2) {
+            manifolds.push((collider1.owner.0, collider2.owner.0, manifold));
+            true
+        } else {
+            false
         }
-        (Solid, Sensor) => {
-            if is_colliding(collider1, position1, collider2, position2) {
-                if *new_edge {
-                    events.push(ContactEvent::OverlapStarted(
-                        ColliderHandle(h1),
-                        ColliderHandle(h2),
-                        collider1.user_tag,
-                        collider2.user_tag,
-                    ));
-                }
-                false
-            } else {
-                if !*new_edge {
-                    events.push(ContactEvent::OverlapEnded(
-                        ColliderHandle(h1),
-                        ColliderHandle(h2),
-                        collider1.user_tag,
-                        collider2.user_tag,
-                    ));
-                }
-                true
-            }
-        }
-        (Sensor, Solid) => {
-            if is_colliding(collider1, position1, collider2, position2) {
-                if *new_edge {
-                    events.push(ContactEvent::OverlapStarted(
-                        ColliderHandle(h2),
-                        ColliderHandle(h1),
-                        collider2.user_tag,
-                        collider1.user_tag,
-                    ));
-                }
-                false
-            } else {
-                if !*new_edge {
-                    events.push(ContactEvent::OverlapEnded(
-                        ColliderHandle(h2),
-                        ColliderHandle(h1),
-                        collider2.user_tag,
-                        collider1.user_tag,
-                    ));
-                }
-                true
-            }
-        }
-        (Sensor, Sensor) => {
-            if is_colliding(collider1, position1, collider2, position2) {
-                if *new_edge {
-                    events.push(ContactEvent::OverlapStarted(
-                        ColliderHandle(h1),
-                        ColliderHandle(h2),
-                        collider1.user_tag,
-                        collider2.user_tag,
-                    ));
-                }
-                false
-            } else {
-                if !*new_edge {
-                    events.push(ContactEvent::OverlapEnded(
-                        ColliderHandle(h1),
-                        ColliderHandle(h2),
-                        collider1.user_tag,
-                        collider2.user_tag,
-                    ));
-                }
-                true
-            }
-        }
-    };
-    *new_edge = false;
-    remove_edge
+    } else {
+        is_colliding(collider1, position1, collider2, position2)
+    }
 }

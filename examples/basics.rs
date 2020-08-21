@@ -19,7 +19,7 @@ async fn main() {
     let rectangle = AABB {
         half_exts: Vec2::new(36., 36.),
     };
-    let bar = AABB {
+    let bottom_bar = AABB {
         half_exts: Vec2::new(36., 8.),
     };
 
@@ -28,9 +28,10 @@ async fn main() {
         .with_velocity(Vec2::new(75., 48.)) // x 75
         .self_collision(false)
         .build();
-    let collider1 = resphys::builder::ColliderDesc::new(rectangle, TagType::Moving).with_offset(Vec2::new( 0.,  0.));
+    let collider1 = resphys::builder::ColliderDesc::new(rectangle, TagType::Moving)
+        .with_offset(Vec2::new(0., 0.));
 
-    let collider1_2 = resphys::builder::ColliderDesc::new(bar, TagType::MovingSensor)
+    let collider1_2 = resphys::builder::ColliderDesc::new(bottom_bar, TagType::MovingSensor)
         .with_offset(Vec2::new(0., 36. - 8.))
         .sensor();
 
@@ -56,7 +57,8 @@ async fn main() {
         .with_position(Vec2::new(600., 360.))
         .make_static()
         .build();
-    let collider3 = resphys::builder::ColliderDesc::new(rectangle, TagType::Collidable).with_offset(Vec2::new(0., -15.));
+    let collider3 = resphys::builder::ColliderDesc::new(rectangle, TagType::Collidable)
+        .with_offset(Vec2::new(0., -15.));
     let body3_handle = physics.insert_body(body3);
     physics.insert_collider(collider3.build(body3_handle));
 
@@ -100,8 +102,8 @@ async fn main() {
             }
             to_remove.into_iter().for_each(|collision_handle| {
                 let collider_owner = physics.get_collider(collision_handle).unwrap().owner;
-                // physics.remove_body(collider_owner);
                 // physics.remove_collider(collision_handle);
+                physics.remove_body(collider_owner);
             });
 
             remaining_time -= FPS_INV;

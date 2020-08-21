@@ -12,6 +12,12 @@ pub struct BodyDesc {
     pub self_collide: bool,
 }
 
+impl Default for BodyDesc {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BodyDesc {
     pub fn new() -> Self {
         Self {

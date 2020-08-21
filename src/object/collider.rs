@@ -78,7 +78,6 @@ pub fn is_penetrating<T>(
     )
 }
 
-
 /// Generates a ContactManifold if two `Colliders` collided.
 pub fn collision_info<T>(
     collider1: &Collider<T>,
