@@ -37,7 +37,9 @@ async fn main() {
 
     let body1_handle = physics.insert_body(body1);
 
-    physics.insert_collider(collider1.build(body1_handle));
+    let player = physics
+        .insert_collider(collider1.build(body1_handle))
+        .unwrap();
     physics.insert_collider(collider1_2.build(body1_handle));
 
     let body2 = resphys::builder::BodyDesc::new()
@@ -100,6 +102,25 @@ async fn main() {
                     to_remove.push(*other);
                 }
             }
+
+            // Reset velocity on axis with collision
+            let vel_mask = {
+                let mut vel_mask = Vec2::one();
+                for (_, info) in physics.collisions_of(player) {
+                    println!("info: {:?}", info);
+                    if info.normal.x() == 0. {
+                        vel_mask.set_y(0.);
+                    } else {
+                        vel_mask.set_x(0.);
+                    }
+                }
+                vel_mask
+            };
+            let player_body_handle = physics.get_collider(player).unwrap().owner;
+            let player_body = physics.mut_body(player_body_handle).unwrap();
+            player_body.velocity *= vel_mask;
+
+            // TODO: Make interactions etc work fine even if a body is supposed to be removed
             to_remove.into_iter().for_each(|collision_handle| {
                 let collider_owner = physics.get_collider(collision_handle).unwrap().owner;
                 // physics.remove_collider(collision_handle);

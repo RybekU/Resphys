@@ -1,14 +1,34 @@
+use crate::collision::aabb::CollisionInfo;
 use fxhash::FxHashMap;
 use petgraph::graph::{NodeIndex, UnGraph};
+use petgraph::visit::EdgeRef;
 
 type HandleNodeMap = FxHashMap<usize, NodeIndex<usize>>;
+
+#[derive(Debug, Clone)]
+pub enum Interaction {
+    Collision(CollisionInfo),
+    Overlap,
+}
+
+impl Interaction {
+    pub fn collision(&self) -> Option<&CollisionInfo> {
+        match self {
+            Interaction::Collision(data) => Some(data),
+            _ => None,
+        }
+    }
+    pub fn is_overlap(&self) -> bool {
+        matches!(self, Interaction::Overlap)
+    }
+}
 
 /// Structure for storing informations about the active collisions.  
 /// Currently unaware of anything besides the handles that collide or whether the collision started this frame.  
 /// Stores result of broadphase that narrowphase should use.
 pub struct CollisionGraph {
     // <BodyHandle, whether it was added this update, index_type to match `bodies` struct>
-    pub src: UnGraph<usize, bool, usize>,
+    pub src: UnGraph<usize, Option<Interaction>, usize>,
     // TODO: In the future try to sync Handle with Node weight
     pub binding: HandleNodeMap,
 }
@@ -36,7 +56,7 @@ impl CollisionGraph {
 
         // don't add the edge if it already exists
         if !self.src.contains_edge(node_id1, node_id2) {
-            self.src.add_edge(node_id1, node_id2, true);
+            self.src.add_edge(node_id1, node_id2, None);
         }
     }
 
@@ -50,5 +70,19 @@ impl CollisionGraph {
         if let Some(&new_handle) = self.src.node_weight(node_id) {
             self.binding.insert(new_handle, node_id);
         }
+    }
+    // -> impl Iterator<Item = (Handle, Handle, &Interaction<N>)>
+    // rename collisions, add overlaps and also for all interactions
+    pub fn edges(
+        &self,
+        handle: usize,
+    ) -> impl Iterator<Item = (crate::ColliderHandle, &Interaction)> {
+        let node_id = self.binding[&handle];
+        self.src.edges(node_id).filter_map(move |edge| {
+            Some((
+                crate::ColliderHandle(self.src[edge.target()]),
+                edge.weight().as_ref()?,
+            ))
+        })
     }
 }

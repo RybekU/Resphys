@@ -89,7 +89,7 @@ fn controls(mut velocity: Vec2) -> Vec2 {
 
     let damped = (1f32 - 0.2).powf(5. * FPS_INV);
     *velocity.x_mut() *= damped;
-    println!("vel: {}", velocity.x());
+    // println!("vel: {}", velocity.x());
 
     *velocity.x_mut() = velocity.x().max(-32. * 4.).min(32. * 4.);
 

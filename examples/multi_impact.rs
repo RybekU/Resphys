@@ -50,6 +50,12 @@ async fn main() {
                 println!("{:?}", event);
             }
 
+            physics
+                .interactions_of(resphys::ColliderHandle { 0: 0 })
+                .for_each(|(first, second)| {
+                    println!("Collider: {:?}, Weight: {:?}", first, second)
+                });
+
             remaining_time -= FPS_INV;
         }
 

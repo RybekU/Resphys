@@ -1,20 +1,17 @@
-use super::collision::{CollisionGraph, ContactManifold};
+use super::collision::{CollisionGraph, CollisionInfo, Interaction};
 use super::event::ContactEvent;
 use super::object::{
-    collision_info, is_colliding, is_penetrating, Body, BodyHandle, BodyStatus, Collider,
+    collision_manifold, is_colliding, is_penetrating, Body, BodyHandle, BodyStatus, Collider,
     ColliderHandle, ColliderState,
 };
 use glam::Vec2;
 use slab::Slab;
-
-type ContactInfo = (usize, usize, ContactManifold);
 
 /// T - User supplied type used as a tag, present in all events
 pub struct PhysicsWorld<T> {
     pub bodies: Slab<Body>,
     pub colliders: Slab<Collider<T>>,
     pub collision_graph: CollisionGraph,
-    pub manifolds: Vec<ContactInfo>,
 
     pub(crate) events: Vec<ContactEvent<T>>,
     removal_events: Vec<ContactEvent<T>>,
@@ -34,7 +31,6 @@ impl<T: Copy> PhysicsWorld<T> {
             bodies: Slab::with_capacity(16),
             colliders: Slab::with_capacity(128),
             collision_graph: CollisionGraph::with_capacity(128, 16),
-            manifolds: Vec::with_capacity(128),
             events: Vec::with_capacity(16),
             removal_events: Vec::with_capacity(8),
             body_handles: Vec::with_capacity(16),
@@ -127,19 +123,46 @@ impl<T: Copy> PhysicsWorld<T> {
     pub fn mut_body(&mut self, handle: BodyHandle) -> Option<&mut Body> {
         self.bodies.get_mut(handle.0)
     }
+
+    /// Interactions are defined per collider.  
+    /// To get only collisions or overlaps use `collisions_of` or `overlaps_of` respectively.  
+    pub fn interactions_of(
+        &self,
+        handle: ColliderHandle,
+    ) -> impl Iterator<Item = (crate::ColliderHandle, &Interaction)> {
+        self.collision_graph.edges(handle.0)
+    }
+    /// Interactions are defined per collider.  
+    /// To get only collisions or overlaps use `collisions_of` or `overlaps_of` respectively.  
+    pub fn collisions_of(
+        &self,
+        handle: ColliderHandle,
+    ) -> impl Iterator<Item = (crate::ColliderHandle, &CollisionInfo)> {
+        self.collision_graph
+            .edges(handle.0)
+            .filter_map(|(h, interaction)| Some((h, interaction.collision()?)))
+    }
+    /// Interactions are defined per collider.  
+    /// To get only collisions or overlaps use `collisions_of` or `overlaps_of` respectively.  
+    pub fn overlaps_of(
+        &self,
+        handle: ColliderHandle,
+    ) -> impl Iterator<Item = (crate::ColliderHandle, &Interaction)> {
+        self.collision_graph
+            .edges(handle.0)
+            .filter(|(_h, interaction)| interaction.is_overlap())
+    }
     pub fn events(&self) -> &Vec<ContactEvent<T>> {
         &self.events
     }
 
     pub fn step(&mut self, dt: f32) {
-        self.manifolds.clear();
         self.events.clear();
         self.events.append(&mut self.removal_events);
         self.body_handles.clear();
 
         let bodies = &mut self.bodies;
         let colliders = &mut self.colliders;
-        let manifolds = &mut self.manifolds;
         let collision_graph = &mut self.collision_graph;
         let events = &mut self.events;
         let body_handles = &mut self.body_handles;
@@ -156,66 +179,16 @@ impl<T: Copy> PhysicsWorld<T> {
         step_x(bodies, colliders, body_handles);
         step_y(bodies, colliders, collision_graph, body_handles);
 
-        // TODO: Don't reallocate
-        let mut removed_edges = vec![];
-        // collision event and contact information
-        for edge_id in collision_graph.src.edge_indices() {
-            let (node1_id, node2_id) = collision_graph.src.edge_endpoints(edge_id).unwrap();
-            let handle1 = collision_graph.src[node1_id];
-            let handle2 = collision_graph.src[node2_id];
-            let collider1 = &colliders[handle1];
-            let collider2 = &colliders[handle2];
+        describe_collisions(bodies, colliders, collision_graph, events);
 
-            let new_edge = collision_graph.src.edge_weight_mut(edge_id).unwrap();
-            let body1 = bodies
-                .get(collider1.owner.0)
-                .expect("Collider without a body");
-            let body2 = bodies
-                .get(collider2.owner.0)
-                .expect("Collider without a body");
-            let collided = detect_collision(
-                &collider1,
-                body1.position,
-                &collider2,
-                body2.position,
-                manifolds,
-            );
-            if collided && *new_edge {
-                events.push(ContactEvent::new(handle1, collider1, handle2, collider2));
-            }
-            if !collided {
-                removed_edges.push((node1_id, node2_id));
-                if !*new_edge {
-                    events.push(
-                        ContactEvent::new(handle1, collider1, handle2, collider2).into_finished(),
-                    );
-                }
-            }
-            *new_edge = false;
-        }
+        // for (h1, _h2, manifold) in manifolds.iter() {
+        //     let body = bodies.get_mut(*h1).expect("Body missing post collision");
+        //     let contact = manifold.best_contact();
+        //     // body.position -= contact.normal * contact.depth;
 
-        removed_edges.into_iter().for_each(|(node1_id, node2_id)| {
-            if let Some(edge_id) = collision_graph.src.find_edge(node1_id, node2_id) {
-                if collision_graph.src.remove_edge(edge_id).is_none() {
-                    log::debug!("CollisionGraph error: Invalid edge removed")
-                }
-            } else {
-                log::debug!(
-                    "CollisionGraph error: No edge between {:?} and {:?}",
-                    node1_id,
-                    node2_id
-                );
-            }
-        });
-
-        for (h1, _h2, manifold) in manifolds.iter() {
-            let body = bodies.get_mut(*h1).expect("Body missing post collision");
-            let contact = manifold.best_contact();
-            // body.position -= contact.normal * contact.depth;
-
-            *body.velocity.x_mut() *= contact.normal.y().abs();
-            *body.velocity.y_mut() *= contact.normal.x().abs();
-        }
+        //     *body.velocity.x_mut() *= contact.normal.y().abs();
+        //     *body.velocity.y_mut() *= contact.normal.x().abs();
+        // }
     }
 }
 
@@ -381,25 +354,79 @@ fn can_collide<T>(body1: &Body, collider1: &Collider<T>, collider2: &Collider<T>
     true
 }
 
-// Makeshift function for collision detection
-// returns whether there was a collision or not
-fn detect_collision<T: Copy>(
-    collider1: &Collider<T>,
-    position1: Vec2,
-    collider2: &Collider<T>,
-    position2: Vec2,
-    manifolds: &mut Vec<ContactInfo>,
-) -> bool {
-    use ColliderState::*;
+fn describe_collisions<T: Copy>(
+    bodies: &Slab<Body>,
+    colliders: &Slab<Collider<T>>,
+    collision_graph: &mut CollisionGraph,
+    events: &mut Vec<ContactEvent<T>>,
+) {
+    // TODO: Don't reallocate
+    let mut removed_edges = vec![];
 
-    if let (Solid, Solid) = (collider1.state, collider2.state) {
-        if let Some(manifold) = collision_info(collider1, position1, collider2, position2) {
-            manifolds.push((collider1.owner.0, collider2.owner.0, manifold));
-            true
-        } else {
-            false
+    // collision event and contact information
+    for edge_id in collision_graph.src.edge_indices() {
+        let (node1_id, node2_id) = collision_graph.src.edge_endpoints(edge_id).unwrap();
+        let handle1 = collision_graph.src[node1_id];
+        let handle2 = collision_graph.src[node2_id];
+        let collider1 = &colliders[handle1];
+        let collider2 = &colliders[handle2];
+
+        let previous_interaction = collision_graph.src.edge_weight_mut(edge_id).unwrap();
+
+        let position1 = bodies
+            .get(collider1.owner.0)
+            .expect("Collider without a body")
+            .position;
+        let position2 = bodies
+            .get(collider2.owner.0)
+            .expect("Collider without a body")
+            .position;
+
+        let current_interaction = {
+            use ColliderState::Solid;
+            if let (Solid, Solid) = (collider1.state, collider2.state) {
+                if let Some(manifold) =
+                    collision_manifold(collider1, position1, collider2, position2)
+                {
+                    // manifolds.push((collider1.owner.0, collider2.owner.0, manifold));
+                    Some(Interaction::Collision(CollisionInfo::from(
+                        manifold.best_contact(),
+                    )))
+                } else {
+                    None
+                }
+            } else if is_colliding(collider1, position1, collider2, position2) {
+                Some(Interaction::Overlap)
+            } else {
+                None
+            }
+        };
+
+        if current_interaction.is_some() && previous_interaction.is_none() {
+            events.push(ContactEvent::new(handle1, collider1, handle2, collider2));
         }
-    } else {
-        is_colliding(collider1, position1, collider2, position2)
+        if current_interaction.is_none() {
+            removed_edges.push((node1_id, node2_id));
+            if previous_interaction.is_some() {
+                events.push(
+                    ContactEvent::new(handle1, collider1, handle2, collider2).into_finished(),
+                );
+            }
+        }
+        *previous_interaction = current_interaction;
     }
+
+    removed_edges.into_iter().for_each(|(node1_id, node2_id)| {
+        if let Some(edge_id) = collision_graph.src.find_edge(node1_id, node2_id) {
+            if collision_graph.src.remove_edge(edge_id).is_none() {
+                log::debug!("CollisionGraph error: Invalid edge removed")
+            }
+        } else {
+            log::debug!(
+                "CollisionGraph error: No edge between {:?} and {:?}",
+                node1_id,
+                node2_id
+            );
+        }
+    });
 }

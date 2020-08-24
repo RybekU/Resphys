@@ -6,6 +6,20 @@ pub struct AABB {
     pub half_exts: Vec2,
 }
 
+/// Minimal structure containing only the most important information about the collision.
+#[derive(Debug, Clone)]
+pub struct CollisionInfo {
+    pub normal: Vec2,
+}
+
+impl From<&Contact> for CollisionInfo {
+    fn from(contact: &Contact) -> Self {
+        Self {
+            normal: contact.normal,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Contact {
     pub depth: f32,
