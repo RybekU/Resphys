@@ -18,6 +18,7 @@ async fn main() {
 
     let mut physics = PhysicsWorld::new();
     let mut bodies = resphys::BodySet::new();
+    let mut colliders = resphys::ColliderSet::new();
 
     let body1 = resphys::builder::BodyDesc::new()
         .with_position(Vec2::new(360., 285.))
@@ -31,20 +32,31 @@ async fn main() {
     );
 
     let player_bhandle = bodies.insert(body1);
-    let _player_chandle = physics
-        .insert_collider(collider1.build(player_bhandle), &mut bodies)
+    let _player_chandle = colliders
+        .insert(collider1.build(player_bhandle), &mut bodies, &mut physics)
         .unwrap();
 
     for x in (0..=768).step_by(32) {
-        add_tile(&mut physics, &mut bodies, Vec2::new(16. + x as f32, 16.));
-    }
-    for y in (32..=544).step_by(32) {
-        add_tile(&mut physics, &mut bodies, Vec2::new(16., 16. + y as f32));
+        add_tile(
+            &mut physics,
+            &mut bodies,
+            &mut colliders,
+            Vec2::new(16. + x as f32, 16.),
+        );
     }
     for y in (32..=544).step_by(32) {
         add_tile(
             &mut physics,
             &mut bodies,
+            &mut colliders,
+            Vec2::new(16., 16. + y as f32),
+        );
+    }
+    for y in (32..=544).step_by(32) {
+        add_tile(
+            &mut physics,
+            &mut bodies,
+            &mut colliders,
             Vec2::new(768. + 16., 16. + y as f32),
         );
     }
@@ -52,6 +64,7 @@ async fn main() {
         add_tile(
             &mut physics,
             &mut bodies,
+            &mut colliders,
             Vec2::new(16. + x as f32, 544. + 16.),
         );
     }
@@ -60,19 +73,19 @@ async fn main() {
     loop {
         remaining_time += get_frame_time();
         while remaining_time >= FPS_INV {
-            let player_body = bodies.get_mut(player_bhandle).unwrap();
+            let player_body = &mut bodies[player_bhandle];
 
             player_body.velocity += Vec2::new(0., 64. * FPS_INV);
 
             player_body.velocity = controls(player_body.velocity);
 
-            physics.step(FPS_INV, &mut bodies);
+            physics.step(FPS_INV, &mut bodies, &mut colliders);
             remaining_time -= FPS_INV;
         }
 
         clear_background(Color::new(0., 1., 1., 1.));
-        for (_, collider) in physics.colliders.iter() {
-            let body = bodies.get_mut(collider.owner).unwrap();
+        for (_, collider) in colliders.iter() {
+            let body = &bodies[collider.owner];
             draw_collider(&collider, body.position);
         }
 
@@ -108,7 +121,12 @@ fn controls(mut velocity: Vec2) -> Vec2 {
     velocity
 }
 
-fn add_tile(physics: &mut PhysicsWorld, bodies: &mut resphys::BodySet, position: Vec2) {
+fn add_tile(
+    physics: &mut PhysicsWorld,
+    bodies: &mut resphys::BodySet,
+    colliders: &mut resphys::ColliderSet<TagType>,
+    position: Vec2,
+) {
     let body3 = resphys::builder::BodyDesc::new()
         .with_position(position)
         .make_static()
@@ -120,7 +138,7 @@ fn add_tile(physics: &mut PhysicsWorld, bodies: &mut resphys::BodySet, position:
         TagType::Tile,
     );
     let body3_handle = bodies.insert(body3);
-    physics.insert_collider(collider3.build(body3_handle), bodies);
+    colliders.insert(collider3.build(body3_handle), bodies, physics);
 }
 
 fn draw_collider(collider: &Collider<TagType>, position: Vec2) {

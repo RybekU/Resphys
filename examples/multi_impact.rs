@@ -10,6 +10,7 @@ const FPS_INV: f32 = 1. / 60.;
 async fn main() {
     let mut physics = resphys::PhysicsWorld::<TagType>::new();
     let mut bodies = resphys::BodySet::new();
+    let mut colliders = resphys::ColliderSet::new();
 
     let rectangle = AABB {
         half_exts: Vec2::new(36., 36.),
@@ -22,7 +23,7 @@ async fn main() {
     let collider1 = resphys::builder::ColliderDesc::new(rectangle, TagType::Moving);
 
     let handle1 = bodies.insert(body1);
-    physics.insert_collider(collider1.build(handle1), &mut bodies);
+    colliders.insert(collider1.build(handle1), &mut bodies, &mut physics);
 
     let body2 = resphys::builder::BodyDesc::new()
         .with_position(Vec2::new(340., 450.))
@@ -30,7 +31,7 @@ async fn main() {
         .build();
     let collider2 = resphys::builder::ColliderDesc::new(rectangle, TagType::Collidable);
     let handle2 = bodies.insert(body2);
-    physics.insert_collider(collider2.build(handle2), &mut bodies);
+    colliders.insert(collider2.build(handle2), &mut bodies, &mut physics);
 
     let body3 = resphys::builder::BodyDesc::new()
         .with_position(Vec2::new(360., 450.))
@@ -39,13 +40,13 @@ async fn main() {
     let collider3 = resphys::builder::ColliderDesc::new(rectangle, TagType::Collidable);
 
     let handle3 = bodies.insert(body3);
-    physics.insert_collider(collider3.build(handle3), &mut bodies);
+    colliders.insert(collider3.build(handle3), &mut bodies, &mut physics);
 
     let mut remaining_time = 0.;
     loop {
         remaining_time += get_frame_time();
         while remaining_time >= FPS_INV {
-            physics.step(FPS_INV, &mut bodies);
+            physics.step(FPS_INV, &mut bodies, &mut colliders);
 
             for event in physics.events().iter() {
                 println!("{:?}", event);
@@ -61,8 +62,8 @@ async fn main() {
         }
 
         clear_background(Color::new(0., 1., 1., 1.));
-        for (_, collider) in physics.colliders.iter() {
-            let body = bodies.get(collider.owner).unwrap();
+        for (_, collider) in colliders.iter() {
+            let body = &bodies[collider.owner];
             draw_collider(&collider, body.position);
         }
 

@@ -1,5 +1,11 @@
-use super::{Body, BodyHandle};
+use super::Body;
 use slab::Slab;
+use std::ops::{Index, IndexMut};
+
+/// Unique identifier of a body stored in the world.
+/// If it gets removed the identifier will be reused.
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct BodyHandle(pub usize);
 
 /// Container for bodies, removal is currently performed through `PhysicsWorld`, but access and modification is possible through this structure
 pub struct BodySet {
@@ -39,5 +45,19 @@ impl BodySet {
     }
     pub(crate) fn internal_remove(&mut self, handle: BodyHandle) -> Body {
         self.bodies.remove(handle.0)
+    }
+}
+
+impl Index<BodyHandle> for BodySet {
+    type Output = Body;
+
+    fn index(&self, index: BodyHandle) -> &Body {
+        &self.bodies[index.0]
+    }
+}
+
+impl IndexMut<BodyHandle> for BodySet {
+    fn index_mut(&mut self, index: BodyHandle) -> &mut Body {
+        &mut self.bodies[index.0]
     }
 }

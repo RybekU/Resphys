@@ -1,5 +1,5 @@
 use super::super::collision::{self, ContactManifold, AABB};
-use super::body::BodyHandle;
+use super::body_set::BodyHandle;
 use glam::Vec2;
 
 /// Describes a collider in the shape of `Shape`. Attached to a body.
@@ -95,11 +95,6 @@ pub fn collision_manifold<T>(
         collider2.shape.half_exts,
     )
 }
-
-/// Unique identifier of a collider stored in the world.
-/// If it gets removed the identifier will be reused.
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ColliderHandle(pub usize);
 
 /// State of the collider, determines default collision resolution and types of events sent.
 #[derive(Copy, Clone, Debug)]

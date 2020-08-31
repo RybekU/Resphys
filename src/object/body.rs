@@ -1,4 +1,4 @@
-use super::collider::ColliderHandle;
+use super::collider_set::ColliderHandle;
 use glam::Vec2;
 
 /// Describes a body.
@@ -33,12 +33,6 @@ impl Body {
         }
     }
 }
-
-/// Unique identifier of a body stored in the world.
-/// If it gets removed the identifier will be reused.
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct BodyHandle(pub usize);
-
 /// Status of the body, determines how it's affected by other bodies.
 #[derive(Copy, Clone, Debug)]
 pub enum BodyStatus {
