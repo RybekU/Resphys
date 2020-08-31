@@ -1,15 +1,14 @@
 use super::collision::{CollisionGraph, CollisionInfo, Interaction};
 use super::event::ContactEvent;
 use super::object::{
-    collision_manifold, is_colliding, is_penetrating, Body, BodyHandle, BodyStatus, Collider,
-    ColliderHandle, ColliderState,
+    collision_manifold, is_colliding, is_penetrating, Body, BodyHandle, BodySet, BodyStatus,
+    Collider, ColliderHandle, ColliderState,
 };
 use glam::Vec2;
 use slab::Slab;
 
 /// T - User supplied type used as a tag, present in all events
 pub struct PhysicsWorld<T> {
-    pub bodies: Slab<Body>,
     pub colliders: Slab<Collider<T>>,
     pub collision_graph: CollisionGraph,
 
@@ -28,7 +27,6 @@ impl<T: Copy> PhysicsWorld<T> {
     //TODO: with_capacity to set slab initial size
     pub fn new() -> Self {
         Self {
-            bodies: Slab::with_capacity(16),
             colliders: Slab::with_capacity(128),
             collision_graph: CollisionGraph::with_capacity(128, 16),
             events: Vec::with_capacity(16),
@@ -39,8 +37,12 @@ impl<T: Copy> PhysicsWorld<T> {
 
     /// Inserts a new collider into the world if it's associated body exists.
     /// In the case where body doesn't exist returns `None`.
-    pub fn insert_collider(&mut self, collider: Collider<T>) -> Option<ColliderHandle> {
-        let body = self.bodies.get_mut(collider.owner.0)?;
+    pub fn insert_collider(
+        &mut self,
+        collider: Collider<T>,
+        bodies: &mut BodySet,
+    ) -> Option<ColliderHandle> {
+        let body = bodies.get_mut(collider.owner)?;
         let key = self.colliders.insert(collider);
         self.collision_graph.add_node(key);
         body.colliders.push(ColliderHandle(key));
@@ -48,7 +50,7 @@ impl<T: Copy> PhysicsWorld<T> {
     }
     /// Panics if there's no collider associated with the handle.  
     /// When collider has active collisions/overlaps the Ended event is scheduled to be sent next frame.
-    pub fn remove_collider(&mut self, handle: ColliderHandle) {
+    pub fn remove_collider(&mut self, handle: ColliderHandle, bodies: &mut BodySet) {
         #[cfg(debug_assertions)]
         if self.colliders.get(handle.0).is_none() {
             panic!("Trying to delete nonexistent collider {:?}", handle)
@@ -73,7 +75,7 @@ impl<T: Copy> PhysicsWorld<T> {
         collision_graph.remove_node(handle.0);
 
         // if owner doesn't exist it's assumed both collider and body are getting removed
-        if let Some(body) = self.bodies.get_mut(collider.owner.0) {
+        if let Some(body) = bodies.get_mut(collider.owner) {
             //TODO: after it gets onto stable: body.colliders.remove_item(handle);
             let index = body
                 .colliders
@@ -98,30 +100,18 @@ impl<T: Copy> PhysicsWorld<T> {
         self.colliders.get_mut(handle.0)
     }
 
-    /// Inserts a new body into the world and returns it's unique handle.
-    pub fn insert_body(&mut self, body: Body) -> BodyHandle {
-        let key = self.bodies.insert(body);
-        BodyHandle(key)
-    }
-
     /// Panics if there's no body associated with the handle.  
     /// All associated colliders are also removed.
     /// When any collider has active collisions/overlaps the Ended event is scheduled to be sent next frame.
-    pub fn remove_body(&mut self, handle: BodyHandle) {
+    pub fn remove_body(&mut self, handle: BodyHandle, bodies: &mut BodySet) {
         #[cfg(debug_assertions)]
-        if self.bodies.get(handle.0).is_none() {
+        if bodies.get(handle).is_none() {
             panic!("Trying to delete nonexistent body {:?}", handle)
         }
-        let body = self.bodies.remove(handle.0);
+        let body = bodies.internal_remove(handle);
         for collider_handle in body.colliders.into_iter() {
-            self.remove_collider(collider_handle);
+            self.remove_collider(collider_handle, bodies);
         }
-    }
-    pub fn get_body(&self, handle: BodyHandle) -> Option<&Body> {
-        self.bodies.get(handle.0)
-    }
-    pub fn mut_body(&mut self, handle: BodyHandle) -> Option<&mut Body> {
-        self.bodies.get_mut(handle.0)
     }
 
     /// Interactions are defined per collider.  
@@ -156,12 +146,11 @@ impl<T: Copy> PhysicsWorld<T> {
         &self.events
     }
 
-    pub fn step(&mut self, dt: f32) {
+    pub fn step(&mut self, dt: f32, bodies: &mut BodySet) {
         self.events.clear();
         self.events.append(&mut self.removal_events);
         self.body_handles.clear();
 
-        let bodies = &mut self.bodies;
         let colliders = &mut self.colliders;
         let collision_graph = &mut self.collision_graph;
         let events = &mut self.events;
@@ -192,9 +181,11 @@ impl<T: Copy> PhysicsWorld<T> {
     }
 }
 
-fn step_x<T>(bodies: &mut Slab<Body>, colliders: &Slab<Collider<T>>, body_handles: &[usize]) {
+fn step_x<T>(bodies: &mut BodySet, colliders: &Slab<Collider<T>>, body_handles: &[usize]) {
     for body1_handle in body_handles {
-        let body1 = bodies.get(*body1_handle).expect("Collider without a body");
+        let body1 = bodies
+            .get(BodyHandle(*body1_handle))
+            .expect("Collider without a body");
         let mut move_x = body1.movement.x();
 
         if let BodyStatus::Static = body1.status {
@@ -228,7 +219,7 @@ fn step_x<T>(bodies: &mut Slab<Body>, colliders: &Slab<Collider<T>>, body_handle
                 }
 
                 let body2 = bodies
-                    .get(collider2.owner.0)
+                    .get(collider2.owner)
                     .expect("Collider without a body");
 
                 if is_penetrating(
@@ -258,20 +249,22 @@ fn step_x<T>(bodies: &mut Slab<Body>, colliders: &Slab<Collider<T>>, body_handle
             }
         }
         let body1 = bodies
-            .get_mut(*body1_handle)
+            .get_mut(BodyHandle(*body1_handle))
             .expect("Collider without a body");
         *body1.position.x_mut() += move_x;
     }
 }
 
 fn step_y<T>(
-    bodies: &mut Slab<Body>,
+    bodies: &mut BodySet,
     colliders: &Slab<Collider<T>>,
     collision_graph: &mut CollisionGraph,
     body_handles: &[usize],
 ) {
     for body1_handle in body_handles {
-        let body1 = bodies.get(*body1_handle).expect("Collider without a body");
+        let body1 = bodies
+            .get(BodyHandle(*body1_handle))
+            .expect("Collider without a body");
         let mut move_y = body1.movement.y();
 
         if let BodyStatus::Static = body1.status {
@@ -296,7 +289,7 @@ fn step_y<T>(
                 }
 
                 let body2 = bodies
-                    .get(collider2.owner.0)
+                    .get(collider2.owner)
                     .expect("Collider without a body");
 
                 if let (ColliderState::Solid, ColliderState::Solid) =
@@ -333,7 +326,7 @@ fn step_y<T>(
             }
         }
         let body1 = bodies
-            .get_mut(*body1_handle)
+            .get_mut(BodyHandle(*body1_handle))
             .expect("Collider without a body");
         *body1.position.y_mut() += move_y;
     }
@@ -355,7 +348,7 @@ fn can_collide<T>(body1: &Body, collider1: &Collider<T>, collider2: &Collider<T>
 }
 
 fn describe_collisions<T: Copy>(
-    bodies: &Slab<Body>,
+    bodies: &BodySet,
     colliders: &Slab<Collider<T>>,
     collision_graph: &mut CollisionGraph,
     events: &mut Vec<ContactEvent<T>>,
@@ -374,11 +367,11 @@ fn describe_collisions<T: Copy>(
         let previous_interaction = collision_graph.src.edge_weight_mut(edge_id).unwrap();
 
         let position1 = bodies
-            .get(collider1.owner.0)
+            .get(collider1.owner)
             .expect("Collider without a body")
             .position;
         let position2 = bodies
-            .get(collider2.owner.0)
+            .get(collider2.owner)
             .expect("Collider without a body")
             .position;
 
