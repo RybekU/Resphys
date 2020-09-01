@@ -1,15 +1,15 @@
 use super::{BodySet, Collider};
-use slab::Slab;
+use generational_arena::Arena;
 use std::ops::{Index, IndexMut};
 
 /// Unique identifier of a collider stored in the world.
 /// If it gets removed the identifier will be reused.
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ColliderHandle(pub usize);
+pub struct ColliderHandle(generational_arena::Index);
 
 /// Container for colliders, removal is currently performed through `PhysicsWorld`, but access and modification is possible through this structure
 pub struct ColliderSet<T> {
-    colliders: Slab<Collider<T>>,
+    colliders: Arena<Collider<T>>,
 }
 
 impl<T> Default for ColliderSet<T> {
@@ -21,7 +21,7 @@ impl<T> Default for ColliderSet<T> {
 impl<T> ColliderSet<T> {
     pub fn new() -> Self {
         Self {
-            colliders: Slab::with_capacity(128),
+            colliders: Arena::with_capacity(128),
         }
     }
 
@@ -36,7 +36,7 @@ impl<T> ColliderSet<T> {
     ) -> Option<ColliderHandle> {
         let body = bodies.get_mut(collider.owner)?;
         let key = self.colliders.insert(collider);
-        world.collision_graph.add_node(key);
+        world.collision_graph.add_node(ColliderHandle(key));
         body.colliders.push(ColliderHandle(key));
         Some(ColliderHandle(key))
     }
@@ -47,14 +47,20 @@ impl<T> ColliderSet<T> {
     pub fn get_mut(&mut self, handle: ColliderHandle) -> Option<&mut Collider<T>> {
         self.colliders.get_mut(handle.0)
     }
-    pub fn iter(&self) -> slab::Iter<'_, Collider<T>> {
-        self.colliders.iter()
+    pub fn iter(&self) -> impl Iterator<Item = (crate::ColliderHandle, &Collider<T>)> {
+        self.colliders
+            .iter()
+            .map(|(index, collider)| (ColliderHandle(index), collider))
     }
-    pub fn iter_mut(&mut self) -> slab::IterMut<'_, Collider<T>> {
-        self.colliders.iter_mut()
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (crate::ColliderHandle, &mut Collider<T>)> {
+        self.colliders
+            .iter_mut()
+            .map(|(index, collider)| (ColliderHandle(index), collider))
     }
     pub(crate) fn internal_remove(&mut self, handle: ColliderHandle) -> Collider<T> {
-        self.colliders.remove(handle.0)
+        self.colliders
+            .remove(handle.0)
+            .expect("Tried to remove nonexistent collider")
     }
 }
 

@@ -23,7 +23,9 @@ async fn main() {
     let collider1 = resphys::builder::ColliderDesc::new(rectangle, TagType::Moving);
 
     let handle1 = bodies.insert(body1);
-    colliders.insert(collider1.build(handle1), &mut bodies, &mut physics);
+    let moving_collider = colliders
+        .insert(collider1.build(handle1), &mut bodies, &mut physics)
+        .unwrap();
 
     let body2 = resphys::builder::BodyDesc::new()
         .with_position(Vec2::new(340., 450.))
@@ -53,7 +55,7 @@ async fn main() {
             }
 
             physics
-                .interactions_of(resphys::ColliderHandle { 0: 0 })
+                .interactions_of(moving_collider)
                 .for_each(|(first, second)| {
                     println!("Collider: {:?}, Weight: {:?}", first, second)
                 });

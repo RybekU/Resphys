@@ -11,7 +11,7 @@ pub struct PhysicsWorld<T> {
     pub collision_graph: CollisionGraph,
     pub(crate) events: Vec<ContactEvent<T>>,
     removal_events: Vec<ContactEvent<T>>,
-    body_handles: Vec<usize>,
+    body_handles: Vec<BodyHandle>,
 }
 
 impl<T: Copy> Default for PhysicsWorld<T> {
@@ -21,7 +21,6 @@ impl<T: Copy> Default for PhysicsWorld<T> {
 }
 
 impl<T: Copy> PhysicsWorld<T> {
-    //TODO: with_capacity to set slab initial size
     pub fn new() -> Self {
         Self {
             collision_graph: CollisionGraph::with_capacity(128, 16),
@@ -47,18 +46,18 @@ impl<T: Copy> PhysicsWorld<T> {
         let removal_events = &mut self.removal_events;
 
         // schedule collision/overlap ended events
-        let node_index = collision_graph.get_node_index(handle.0);
+        let node_index = collision_graph.get_node_index(handle);
         for node_index_other in collision_graph.src.neighbors(node_index) {
             let handle_other = *collision_graph
                 .src
                 .node_weight(node_index_other)
                 .expect("remove_collider: other node missing");
-            let collider_other = &colliders[ColliderHandle(handle_other)];
-            let event = ContactEvent::new(handle.0, &collider, handle_other, collider_other)
-                .into_finished();
+            let collider_other = &colliders[handle_other];
+            let event =
+                ContactEvent::new(handle, &collider, handle_other, collider_other).into_finished();
             removal_events.push(event);
         }
-        collision_graph.remove_node(handle.0);
+        collision_graph.remove_node(handle);
 
         // if owner doesn't exist it's assumed both collider and body are getting removed
         if let Some(body) = bodies.get_mut(collider.owner) {
@@ -73,7 +72,7 @@ impl<T: Copy> PhysicsWorld<T> {
                 #[cfg(debug_assertions)]
                 panic!(
                     "Body {:?} didn't know about {:?} collider",
-                    collider.owner.0, handle
+                    collider.owner, handle
                 )
             }
         }
@@ -103,7 +102,7 @@ impl<T: Copy> PhysicsWorld<T> {
         &self,
         handle: ColliderHandle,
     ) -> impl Iterator<Item = (crate::ColliderHandle, &Interaction)> {
-        self.collision_graph.edges(handle.0)
+        self.collision_graph.edges(handle)
     }
     /// Interactions are defined per collider.  
     /// To get only collisions or overlaps use `collisions_of` or `overlaps_of` respectively.  
@@ -112,7 +111,7 @@ impl<T: Copy> PhysicsWorld<T> {
         handle: ColliderHandle,
     ) -> impl Iterator<Item = (crate::ColliderHandle, &CollisionInfo)> {
         self.collision_graph
-            .edges(handle.0)
+            .edges(handle)
             .filter_map(|(h, interaction)| Some((h, interaction.collision()?)))
     }
     /// Interactions are defined per collider.  
@@ -122,7 +121,7 @@ impl<T: Copy> PhysicsWorld<T> {
         handle: ColliderHandle,
     ) -> impl Iterator<Item = (crate::ColliderHandle, &Interaction)> {
         self.collision_graph
-            .edges(handle.0)
+            .edges(handle)
             .filter(|(_h, interaction)| interaction.is_overlap())
     }
     pub fn events(&self) -> &Vec<ContactEvent<T>> {
@@ -163,11 +162,9 @@ impl<T: Copy> PhysicsWorld<T> {
     }
 }
 
-fn step_x<T>(bodies: &mut BodySet, colliders: &mut ColliderSet<T>, body_handles: &[usize]) {
+fn step_x<T>(bodies: &mut BodySet, colliders: &mut ColliderSet<T>, body_handles: &[BodyHandle]) {
     for body1_handle in body_handles {
-        let body1 = bodies
-            .get(BodyHandle(*body1_handle))
-            .expect("Collider without a body");
+        let body1 = bodies.get(*body1_handle).expect("Collider without a body");
         let mut move_x = body1.movement.x();
 
         if let BodyStatus::Static = body1.status {
@@ -187,7 +184,7 @@ fn step_x<T>(bodies: &mut BodySet, colliders: &mut ColliderSet<T>, body_handles:
             // TODO: Broadphase scan just the neighbours
             for (coll2_handle, collider2) in colliders.iter() {
                 // no collider colliding with itself
-                if coll1_handle.0 == coll2_handle {
+                if *coll1_handle == coll2_handle {
                     continue;
                 }
 
@@ -231,7 +228,7 @@ fn step_x<T>(bodies: &mut BodySet, colliders: &mut ColliderSet<T>, body_handles:
             }
         }
         let body1 = bodies
-            .get_mut(BodyHandle(*body1_handle))
+            .get_mut(*body1_handle)
             .expect("Collider without a body");
         *body1.position.x_mut() += move_x;
     }
@@ -241,12 +238,10 @@ fn step_y<T>(
     bodies: &mut BodySet,
     colliders: &mut ColliderSet<T>,
     collision_graph: &mut CollisionGraph,
-    body_handles: &[usize],
+    body_handles: &[BodyHandle],
 ) {
     for body1_handle in body_handles {
-        let body1 = bodies
-            .get(BodyHandle(*body1_handle))
-            .expect("Collider without a body");
+        let body1 = bodies.get(*body1_handle).expect("Collider without a body");
         let mut move_y = body1.movement.y();
 
         if let BodyStatus::Static = body1.status {
@@ -254,15 +249,15 @@ fn step_y<T>(
         }
 
         for coll1_handle in body1.colliders.iter() {
-            let coll1_handle = coll1_handle.0;
             let collider1 = colliders
-                .get(ColliderHandle(coll1_handle))
+                .get(*coll1_handle)
                 .expect("Body cached nonexistent collider");
 
             // TODO: Broadphase scan just the neighbours
             for (coll2_handle, collider2) in colliders.iter() {
+                let coll2_handle = coll2_handle;
                 // no collider colliding with itself
-                if coll1_handle == coll2_handle {
+                if *coll1_handle == coll2_handle {
                     continue;
                 }
 
@@ -303,12 +298,12 @@ fn step_y<T>(
                     }
                 }
                 if is_colliding(collider1, body1.position, collider2, body2.position) {
-                    collision_graph.update_edge(coll1_handle, coll2_handle);
+                    collision_graph.update_edge(*coll1_handle, coll2_handle);
                 }
             }
         }
         let body1 = bodies
-            .get_mut(BodyHandle(*body1_handle))
+            .get_mut(*body1_handle)
             .expect("Collider without a body");
         *body1.position.y_mut() += move_y;
     }
@@ -323,7 +318,7 @@ fn can_collide<T>(body1: &Body, collider1: &Collider<T>, collider2: &Collider<T>
     }
 
     // don't collide with same body if it's disabled
-    if collider1.owner.0 == collider2.owner.0 && !body1.self_collide {
+    if collider1.owner == collider2.owner && !body1.self_collide {
         return false;
     }
     true
@@ -343,8 +338,8 @@ fn describe_collisions<T: Copy>(
         let (node1_id, node2_id) = collision_graph.src.edge_endpoints(edge_id).unwrap();
         let handle1 = collision_graph.src[node1_id];
         let handle2 = collision_graph.src[node2_id];
-        let collider1 = &colliders[ColliderHandle(handle1)];
-        let collider2 = &colliders[ColliderHandle(handle2)];
+        let collider1 = &colliders[handle1];
+        let collider2 = &colliders[handle2];
 
         let previous_interaction = collision_graph.src.edge_weight_mut(edge_id).unwrap();
 

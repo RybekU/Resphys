@@ -12,37 +12,25 @@ pub enum ContactEvent<T> {
 
 impl<T: Copy> ContactEvent<T> {
     pub fn new(
-        h1: usize,
+        h1: ColliderHandle,
         collider1: &Collider<T>,
-        h2: usize,
+        h2: ColliderHandle,
         collider2: &Collider<T>,
     ) -> ContactEvent<T> {
         use ColliderState::*;
         match (&collider1.state, &collider2.state) {
-            (Solid, Solid) => ContactEvent::CollisionStarted(
-                ColliderHandle(h1),
-                ColliderHandle(h2),
-                collider1.user_tag,
-                collider2.user_tag,
-            ),
-            (Solid, Sensor) => ContactEvent::OverlapStarted(
-                ColliderHandle(h1),
-                ColliderHandle(h2),
-                collider1.user_tag,
-                collider2.user_tag,
-            ),
-            (Sensor, Solid) => ContactEvent::OverlapStarted(
-                ColliderHandle(h2),
-                ColliderHandle(h1),
-                collider2.user_tag,
-                collider1.user_tag,
-            ),
-            (Sensor, Sensor) => ContactEvent::OverlapStarted(
-                ColliderHandle(h1),
-                ColliderHandle(h2),
-                collider1.user_tag,
-                collider2.user_tag,
-            ),
+            (Solid, Solid) => {
+                ContactEvent::CollisionStarted(h1, h2, collider1.user_tag, collider2.user_tag)
+            }
+            (Solid, Sensor) => {
+                ContactEvent::OverlapStarted(h1, h2, collider1.user_tag, collider2.user_tag)
+            }
+            (Sensor, Solid) => {
+                ContactEvent::OverlapStarted(h2, h1, collider2.user_tag, collider1.user_tag)
+            }
+            (Sensor, Sensor) => {
+                ContactEvent::OverlapStarted(h1, h2, collider1.user_tag, collider2.user_tag)
+            }
         }
     }
     // changes started events into ended
