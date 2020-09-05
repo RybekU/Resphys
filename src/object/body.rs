@@ -1,4 +1,4 @@
-use super::collider::ColliderHandle;
+use super::collider_set::ColliderHandle;
 use glam::Vec2;
 
 /// Describes a body.
@@ -17,6 +17,8 @@ pub struct Body {
     pub self_collide: bool,
     // cached list of colliders belonging to body
     pub(crate) colliders: Vec<ColliderHandle>,
+    // the distance body will want to cover during the next step
+    pub(crate) movement: Vec2,
 }
 
 impl Body {
@@ -27,15 +29,10 @@ impl Body {
             status,
             self_collide,
             colliders: Vec::new(),
+            movement: Vec2::zero(),
         }
     }
 }
-
-/// Unique identifier of a body stored in the world.
-/// If it gets removed the identifier will be reused.
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct BodyHandle(pub usize);
-
 /// Status of the body, determines how it's affected by other bodies.
 #[derive(Copy, Clone, Debug)]
 pub enum BodyStatus {

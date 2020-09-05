@@ -1,6 +1,6 @@
 use glam::Vec2;
 use macroquad::*;
-use resphys::{Collider, ColliderState, Shape};
+use resphys::{Collider, ColliderState, AABB};
 
 // Body creation with builder assistance, event iteration and deletion of bodies
 
@@ -15,25 +15,34 @@ async fn main() {
     simple_logger::init().unwrap();
 
     let mut physics = resphys::PhysicsWorld::<TagType>::new();
+    let mut bodies = resphys::BodySet::new();
+    let mut colliders = resphys::ColliderSet::new();
 
-    let rectangle = Shape::AABB(Vec2::new(36., 36.));
-    let bar = Shape::AABB(Vec2::new(36., 8.));
+    let rectangle = AABB {
+        half_exts: Vec2::new(36., 36.),
+    };
+    let bottom_bar = AABB {
+        half_exts: Vec2::new(36., 8.),
+    };
 
     let body1 = resphys::builder::BodyDesc::new()
-        .with_position(Vec2::new(360., 285.))
-        .with_velocity(Vec2::new(75., 48.))
+        .with_position(Vec2::new(360., 285.)) // x 360 y 285.
+        .with_velocity(Vec2::new(75., 48.)) // x 75
         .self_collision(false)
         .build();
-    let collider1 = resphys::builder::ColliderDesc::new(rectangle, TagType::Moving);
+    let collider1 = resphys::builder::ColliderDesc::new(rectangle, TagType::Moving)
+        .with_offset(Vec2::new(0., 0.));
 
-    let collider1_2 = resphys::builder::ColliderDesc::new(bar, TagType::MovingSensor)
+    let collider1_2 = resphys::builder::ColliderDesc::new(bottom_bar, TagType::MovingSensor)
         .with_offset(Vec2::new(0., 36. - 8.))
         .sensor();
 
-    let body1_handle = physics.insert_body(body1);
+    let body1_handle = bodies.insert(body1);
 
-    physics.insert_collider(collider1.build(body1_handle));
-    physics.insert_collider(collider1_2.build(body1_handle));
+    let player = colliders
+        .insert(collider1.build(body1_handle), &mut bodies, &mut physics)
+        .unwrap();
+    colliders.insert(collider1_2.build(body1_handle), &mut bodies, &mut physics);
 
     let body2 = resphys::builder::BodyDesc::new()
         .with_position(Vec2::new(450., 450.))
@@ -44,32 +53,33 @@ async fn main() {
         .with_offset(Vec2::new(0., 80.))
         .sensor();
 
-    let body2_handle = physics.insert_body(body2);
-    physics.insert_collider(collider2.build(body2_handle));
-    physics.insert_collider(collider2_2.build(body2_handle));
+    let body2_handle = bodies.insert(body2);
+    colliders.insert(collider2.build(body2_handle), &mut bodies, &mut physics);
+    colliders.insert(collider2_2.build(body2_handle), &mut bodies, &mut physics);
 
     let body3 = resphys::builder::BodyDesc::new()
         .with_position(Vec2::new(600., 360.))
         .make_static()
         .build();
-    let collider3 = resphys::builder::ColliderDesc::new(rectangle, TagType::Collidable);
-    let body3_handle = physics.insert_body(body3);
-    physics.insert_collider(collider3.build(body3_handle));
+    let collider3 = resphys::builder::ColliderDesc::new(rectangle, TagType::Collidable)
+        .with_offset(Vec2::new(0., -15.));
+    let body3_handle = bodies.insert(body3);
+    colliders.insert(collider3.build(body3_handle), &mut bodies, &mut physics);
 
     let body4 = resphys::builder::BodyDesc::new()
         .with_position(Vec2::new(375., 375.))
         .make_static()
         .build();
     let collider4 = resphys::builder::ColliderDesc::new(rectangle, TagType::Sensor).sensor();
-    let body4_handle = physics.insert_body(body4);
-    physics.insert_collider(collider4.build(body4_handle));
+    let body4_handle = bodies.insert(body4);
+    colliders.insert(collider4.build(body4_handle), &mut bodies, &mut physics);
 
     let mut remaining_time = 0.;
     let mut counter = 0;
     loop {
         remaining_time += get_frame_time();
         while remaining_time >= FPS_INV {
-            physics.step(FPS_INV);
+            physics.step(FPS_INV, &mut bodies, &mut colliders);
 
             let mut to_remove = Vec::new();
             for event in physics.events().iter() {
@@ -94,18 +104,36 @@ async fn main() {
                     to_remove.push(*other);
                 }
             }
+
+            // Reset velocity on axis with collision
+            let vel_mask = {
+                let mut vel_mask = Vec2::one();
+                for (_, info) in physics.collisions_of(player) {
+                    println!("info: {:?}", info);
+                    if info.normal.x() == 0. {
+                        vel_mask.set_y(0.);
+                    } else {
+                        vel_mask.set_x(0.);
+                    }
+                }
+                vel_mask
+            };
+            let player_body_handle = colliders[player].owner;
+            let player_body = &mut bodies[player_body_handle];
+            player_body.velocity *= vel_mask;
+
             to_remove.into_iter().for_each(|collision_handle| {
-                let collider_owner = physics.get_collider(collision_handle).unwrap().owner;
-                physics.remove_body(collider_owner);
+                let collider_owner = colliders[collision_handle].owner;
                 // physics.remove_collider(collision_handle);
+                physics.remove_body(collider_owner, &mut bodies, &mut colliders);
             });
 
             remaining_time -= FPS_INV;
         }
 
         clear_background(Color::new(0., 1., 1., 1.));
-        for (_, collider) in physics.colliders.iter() {
-            let body = physics.get_body(collider.owner).unwrap();
+        for (_, collider) in colliders.iter() {
+            let body = &bodies[collider.owner];
             draw_collider(&collider, body.position);
         }
 
@@ -123,7 +151,7 @@ fn draw_collider(collider: &Collider<TagType>, position: Vec2) {
 
     color.0[3] = (0.3 * 255.) as u8;
     // This works because there's currently only AABB shape. Half extents.
-    let Shape::AABB(wh) = collider.shape;
+    let wh = collider.shape.half_exts;
     let x_pos = position.x() - wh.x() + collider.offset.x();
     let y_pos = position.y() - wh.y() + collider.offset.y();
     draw_rectangle(x_pos, y_pos, wh.x() * 2., wh.y() * 2., color);

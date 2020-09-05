@@ -1,6 +1,8 @@
+mod aabb;
 mod collision_graph;
-mod shape;
+mod ray;
 
-pub use self::collision_graph::CollisionGraph;
-pub use self::shape::{collision_aabb_aabb, collision_aabb_aabb_manifold};
-pub use self::shape::{ContactManifold, Shape};
+pub use self::aabb::{contact_aabb_aabb, intersection_aabb_aabb, CollisionInfo};
+pub use self::aabb::{ContactManifold, AABB};
+pub use self::collision_graph::{CollisionGraph, Interaction};
+pub use self::ray::{contact_ray_aabb, Ray, Raycast};
