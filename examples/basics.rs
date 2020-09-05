@@ -122,7 +122,6 @@ async fn main() {
             let player_body = &mut bodies[player_body_handle];
             player_body.velocity *= vel_mask;
 
-            // TODO: Make interactions etc work fine even if a body is supposed to be removed
             to_remove.into_iter().for_each(|collision_handle| {
                 let collider_owner = colliders[collision_handle].owner;
                 // physics.remove_collider(collision_handle);

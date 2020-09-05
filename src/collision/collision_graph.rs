@@ -30,7 +30,6 @@ impl Interaction {
 pub struct CollisionGraph {
     // <BodyHandle, whether it was added this update, index_type to match `bodies` struct>
     pub src: UnGraph<ColliderHandle, Option<Interaction>, usize>,
-    // TODO: In the future try to sync Handle with Node weight
     pub binding: HandleNodeMap,
 }
 

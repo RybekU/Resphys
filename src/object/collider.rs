@@ -1,4 +1,5 @@
 use super::super::collision::{self, ContactManifold, AABB};
+use super::super::collision::{Ray, Raycast};
 use super::body_set::BodyHandle;
 use glam::Vec2;
 
@@ -41,6 +42,14 @@ impl<T> Collider<T> {
             owner,
         }
     }
+    pub fn overlaps_aabb(&self, own_position: Vec2, position: Vec2, half_exts: Vec2) -> bool {
+        let own_position = own_position + self.offset;
+        collision::intersection_aabb_aabb(own_position, self.shape.half_exts, position, half_exts)
+    }
+    pub fn ray_contact(&self, own_position: Vec2, ray: &Ray) -> Option<Raycast> {
+        let own_position = own_position + self.offset;
+        collision::contact_ray_aabb(ray, own_position, self.shape.half_exts)
+    }
 }
 
 /// Boolean test whether two `Colliders` collided.
@@ -53,7 +62,7 @@ pub fn is_colliding<T>(
     // apply offset
     let position1 = position1 + collider1.offset;
     let position2 = position2 + collider2.offset;
-    collision::collision_aabb_aabb(
+    collision::intersection_aabb_aabb(
         position1,
         collider1.shape.half_exts,
         position2,
@@ -70,7 +79,7 @@ pub fn is_penetrating<T>(
 ) -> bool {
     let position1 = position1 + collider1.offset;
     let position2 = position2 + collider2.offset;
-    collision::collision_aabb_aabb(
+    collision::intersection_aabb_aabb(
         position1,
         collider1.shape.half_exts - Vec2::splat(tolerance),
         position2,
@@ -88,7 +97,7 @@ pub fn collision_manifold<T>(
     // apply offset
     let position1 = position1 + collider1.offset;
     let position2 = position2 + collider2.offset;
-    collision::collision_aabb_aabb_manifold(
+    collision::contact_aabb_aabb(
         position1,
         collider1.shape.half_exts,
         position2,

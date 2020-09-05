@@ -54,7 +54,12 @@ impl ContactManifold {
 }
 
 // ported https://github.com/RandyGaul/cute_headers/blob/master/cute_c2.h#L1193
-pub fn collision_aabb_aabb(a_loc: Vec2, a_half_exts: Vec2, b_loc: Vec2, b_half_exts: Vec2) -> bool {
+pub fn intersection_aabb_aabb(
+    a_loc: Vec2,
+    a_half_exts: Vec2,
+    b_loc: Vec2,
+    b_half_exts: Vec2,
+) -> bool {
     let a_min = a_loc - a_half_exts;
     let a_max = a_loc + a_half_exts;
     let b_min = b_loc - b_half_exts;
@@ -65,11 +70,11 @@ pub fn collision_aabb_aabb(a_loc: Vec2, a_half_exts: Vec2, b_loc: Vec2, b_half_e
     let d2 = b_max.y() < a_min.y();
     let d3 = a_max.y() < b_min.y();
 
-    !(d0 || d1 || d2 || d3)
+    !(d0 | d1 | d2 | d3)
 }
 
 // contact points aren't precise - they are currently in the middle on the correct side
-pub fn collision_aabb_aabb_manifold(
+pub fn contact_aabb_aabb(
     a_loc: Vec2,
     a_half_exts: Vec2,
     b_loc: Vec2,

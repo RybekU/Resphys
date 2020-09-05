@@ -1,4 +1,4 @@
-use super::collision::{CollisionGraph, CollisionInfo, Interaction};
+use super::collision::{CollisionGraph, CollisionInfo, Interaction, Ray, Raycast};
 use super::event::ContactEvent;
 use super::object::{
     collision_manifold, is_colliding, is_penetrating, Body, BodyHandle, BodySet, BodyStatus,
@@ -61,7 +61,6 @@ impl<T: Copy> PhysicsWorld<T> {
 
         // if owner doesn't exist it's assumed both collider and body are getting removed
         if let Some(body) = bodies.get_mut(collider.owner) {
-            //TODO: after it gets onto stable: body.colliders.remove_item(handle);
             let index = body
                 .colliders
                 .iter()
@@ -123,6 +122,48 @@ impl<T: Copy> PhysicsWorld<T> {
         self.collision_graph
             .edges(handle)
             .filter(|(_h, interaction)| interaction.is_overlap())
+    }
+    /// Returns an iterator to `ColliderHandle`'s of colliders overlapping with given AABB.  
+    ///  `position` is the center of the AABB
+    pub fn overlap_test<'a>(
+        &self,
+        position: Vec2,
+        half_exts: Vec2,
+        collision_mask: u32,
+        bodies: &'a BodySet,
+        colliders: &'a ColliderSet<T>,
+    ) -> impl Iterator<Item = ColliderHandle> + 'a {
+        // TODO: Use broadphase
+        bodies
+            .iter()
+            .flat_map(|(_, body)| body.colliders.iter().map(move |h| (*h, body.position)))
+            .filter(move |(h, _)| (colliders[*h].category_bits & collision_mask) != 0)
+            .filter_map(move |(h, body_pos)| {
+                if colliders[h].overlaps_aabb(body_pos, position, half_exts) {
+                    Some(h)
+                } else {
+                    None
+                }
+            })
+    }
+    /// Returns an iterator to `ColliderHandle`'s of colliders overlapping with given ray.  
+    pub fn project_ray<'a>(
+        &self,
+        ray: &'a Ray,
+        collision_mask: u32,
+        bodies: &'a BodySet,
+        colliders: &'a ColliderSet<T>,
+    ) -> impl Iterator<Item = (ColliderHandle, Raycast)> + 'a {
+        // TODO: Use broadphase
+        bodies
+            .iter()
+            .flat_map(|(_, body)| body.colliders.iter().map(move |h| (*h, body.position)))
+            .filter(move |(h, _)| (colliders[*h].category_bits & collision_mask) != 0)
+            .filter_map(move |(h, pos)| {
+                colliders[h]
+                    .ray_contact(pos, ray)
+                    .map(|raycast| (h, raycast))
+            })
     }
     pub fn events(&self) -> &Vec<ContactEvent<T>> {
         &self.events
