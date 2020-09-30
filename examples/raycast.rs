@@ -10,7 +10,6 @@ type PhysicsWorld = resphys::PhysicsWorld<TagType>;
 
 #[macroquad::main("Raycast/Overlap Test demonstration")]
 async fn main() {
-    simple_logger::init().unwrap();
 
     let ray = resphys::Ray {
         origin: Vec2::new(750.0, 50.0),

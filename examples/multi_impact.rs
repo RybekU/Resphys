@@ -6,7 +6,7 @@ use resphys::{Collider, ColliderState, AABB};
 
 const FPS_INV: f32 = 1. / 60.;
 
-#[macroquad::main("Hitting multiple colliders in a single step")]
+#[macroquad::main("Hitting multiple colliders in a single step at high speed")]
 async fn main() {
     let mut physics = resphys::PhysicsWorld::<TagType>::new();
     let mut bodies = resphys::BodySet::new();

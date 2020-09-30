@@ -12,7 +12,6 @@ const FPS_INV: f32 = 1. / 60.;
 
 #[macroquad::main("Basic usage")]
 async fn main() {
-    simple_logger::init().unwrap();
 
     let mut physics = resphys::PhysicsWorld::<TagType>::new();
     let mut bodies = resphys::BodySet::new();

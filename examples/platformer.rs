@@ -2,19 +2,16 @@ use glam::Vec2;
 use macroquad::*;
 use resphys::{Collider, ColliderState, AABB};
 
-// Body creation with builder assistance, event iteration and deletion of bodies
+// Crude character controller
 
 extern crate log;
-
-// use log::debug;
 
 const FPS_INV: f32 = 1. / 60.;
 
 type PhysicsWorld = resphys::PhysicsWorld<TagType>;
 
-#[macroquad::main("Basic usage")]
+#[macroquad::main("Controllable box")]
 async fn main() {
-    simple_logger::init().unwrap();
 
     let mut physics = PhysicsWorld::new();
     let mut bodies = resphys::BodySet::new();
