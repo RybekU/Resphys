@@ -5,7 +5,7 @@ authors = ["Rybek"]
 readme = "README.md"
 description = "Simple 2D AABB only game collision detection/resolution engine."
 repository = "https://github.com/RybekU/Resphys"
-keywords = [ "physics", "2d", "real-time", "simple", "collision", "aabb"]
+keywords = [ "physics", "2d", "simple", "collision", "aabb"]
 license = "Apache-2.0"
 edition = "2018"
 
