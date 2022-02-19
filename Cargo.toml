@@ -14,7 +14,7 @@ edition = "2018"
 generational-arena = "0.2.8"
 fxhash = "0.2.1"
 petgraph = "0.5.1"
-glam = {version="0.9.4", features = ["mint"]}
+glam = {version="0.20.2", features = ["mint"]}
 log = "0.4.11"
 
 [dev-dependencies]

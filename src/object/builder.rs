@@ -21,8 +21,8 @@ impl Default for BodyDesc {
 impl BodyDesc {
     pub fn new() -> Self {
         Self {
-            position: Vec2::zero(),
-            velocity: Vec2::zero(),
+            position: Vec2::ZERO,
+            velocity: Vec2::ZERO,
             status: BodyStatus::Kinematic,
             self_collide: true,
         }
@@ -65,7 +65,7 @@ impl<T: Copy> ColliderDesc<T> {
     pub fn new(shape: AABB, user_tag: T) -> Self {
         Self {
             shape,
-            offset: Vec2::zero(),
+            offset: Vec2::ZERO,
             state: ColliderState::Solid,
             category_bits: 1,
             mask_bits: u32::MAX,

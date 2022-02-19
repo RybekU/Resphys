@@ -41,24 +41,24 @@ pub fn contact_ray_aabb(ray: &Ray, aabb_pos: Vec2, aabb_half_exts: Vec2) -> Opti
     }
 
     let t_left = ray_plane_1d(
-        Vec2::new(ray.origin.x(), dest.x()),
+        Vec2::new(ray.origin.x, dest.x),
         -1.,
-        aabb_pos.x() - aabb_half_exts.x(),
+        aabb_pos.x - aabb_half_exts.x,
     );
     let t_right = ray_plane_1d(
-        Vec2::new(ray.origin.x(), dest.x()),
+        Vec2::new(ray.origin.x, dest.x),
         1.,
-        aabb_pos.x() + aabb_half_exts.x(),
+        aabb_pos.x + aabb_half_exts.x,
     );
     let t_top = ray_plane_1d(
-        Vec2::new(ray.origin.y(), dest.y()),
+        Vec2::new(ray.origin.y, dest.y),
         -1.,
-        aabb_pos.y() - aabb_half_exts.y(),
+        aabb_pos.y - aabb_half_exts.y,
     );
     let t_bottom = ray_plane_1d(
-        Vec2::new(ray.origin.y(), dest.y()),
+        Vec2::new(ray.origin.y, dest.y),
         1.,
-        aabb_pos.y() + aabb_half_exts.y(),
+        aabb_pos.y + aabb_half_exts.y,
     );
 
     // Calculate hit predicate
@@ -80,13 +80,13 @@ pub fn contact_ray_aabb(ray: &Ray, aabb_pos: Vec2, aabb_half_exts: Vec2) -> Opti
 
         // result of multiple calls to `max` so there shouldn't be any issue with floating point error
         let normal = if t_left == t_max {
-            Vec2::unit_x() * -1.
+            Vec2::X * -1.
         } else if t_right == t_max {
-            Vec2::unit_x()
+            Vec2::X
         } else if t_top == t_max {
-            Vec2::unit_y() * -1.
+            Vec2::Y * -1.
         } else {
-            Vec2::unit_y()
+            Vec2::Y
         };
         Some(Raycast { toi, normal })
     } else {
@@ -95,7 +95,7 @@ pub fn contact_ray_aabb(ray: &Ray, aabb_pos: Vec2, aabb_half_exts: Vec2) -> Opti
 }
 
 fn clockwise_90_turn(vec: Vec2) -> Vec2 {
-    Vec2::new(-vec.y(), vec.x())
+    Vec2::new(-vec.y, vec.x)
 }
 
 // both ray and plane are one dimensional
@@ -103,7 +103,7 @@ fn clockwise_90_turn(vec: Vec2) -> Vec2 {
 fn ray_plane_1d(ray_1d: Vec2, normal: f32, plane_1d: f32) -> f32 {
     let d = (ray_1d - Vec2::splat(plane_1d)) * normal;
 
-    ray_plane_1d_time(d.x(), d.y())
+    ray_plane_1d_time(d.x, d.y)
 }
 
 fn ray_plane_1d_time(da: f32, db: f32) -> f32 {
@@ -116,7 +116,7 @@ fn ray_plane_1d_time(da: f32, db: f32) -> f32 {
         1.
     }
     // Ray is too tiny
-    else if (da - db) < f32::EPSILON {
+    else if (da - db).abs() < f32::EPSILON {
         0.
     } else {
         da / (da - db)

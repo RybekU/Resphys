@@ -29,7 +29,7 @@ impl Body {
             status,
             self_collide,
             colliders: Vec::new(),
-            movement: Vec2::zero(),
+            movement: Vec2::ZERO,
         }
     }
 }

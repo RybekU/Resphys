@@ -12,7 +12,6 @@ const FPS_INV: f32 = 1. / 60.;
 
 #[macroquad::main("Basic usage")]
 async fn main() {
-
     let mut physics = resphys::PhysicsWorld::<TagType>::new();
     let mut bodies = resphys::BodySet::new();
     let mut colliders = resphys::ColliderSet::new();
@@ -106,13 +105,13 @@ async fn main() {
 
             // Reset velocity on axis with collision
             let vel_mask = {
-                let mut vel_mask = Vec2::one();
+                let mut vel_mask = Vec2::ONE;
                 for (_, info) in physics.collisions_of(player) {
                     println!("info: {:?}", info);
-                    if info.normal.x() == 0. {
-                        vel_mask.set_y(0.);
+                    if info.normal.x == 0. {
+                        vel_mask.y = 0.;
                     } else {
-                        vel_mask.set_x(0.);
+                        vel_mask.x = 0.;
                     }
                 }
                 vel_mask
@@ -133,7 +132,7 @@ async fn main() {
         clear_background(Color::new(0., 1., 1., 1.));
         for (_, collider) in colliders.iter() {
             let body = &bodies[collider.owner];
-            draw_collider(&collider, body.position);
+            draw_collider(collider, body.position);
         }
 
         next_frame().await
@@ -151,10 +150,10 @@ fn draw_collider(collider: &Collider<TagType>, position: Vec2) {
     color.0[3] = (0.3 * 255.) as u8;
     // This works because there's currently only AABB shape. Half extents.
     let wh = collider.shape.half_exts;
-    let x_pos = position.x() - wh.x() + collider.offset.x();
-    let y_pos = position.y() - wh.y() + collider.offset.y();
-    draw_rectangle(x_pos, y_pos, wh.x() * 2., wh.y() * 2., color);
-    draw_rectangle_lines(x_pos, y_pos, wh.x() * 2., wh.y() * 2., 3., fill_color);
+    let x_pos = position.x - wh.x + collider.offset.x;
+    let y_pos = position.y - wh.y + collider.offset.y;
+    draw_rectangle(x_pos, y_pos, wh.x * 2., wh.y * 2., color);
+    draw_rectangle_lines(x_pos, y_pos, wh.x * 2., wh.y * 2., 3., fill_color);
 }
 #[derive(Clone, Copy, Debug)]
 enum TagType {

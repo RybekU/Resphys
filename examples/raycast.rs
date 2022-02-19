@@ -10,7 +10,6 @@ type PhysicsWorld = resphys::PhysicsWorld<TagType>;
 
 #[macroquad::main("Raycast/Overlap Test demonstration")]
 async fn main() {
-
     let ray = resphys::Ray {
         origin: Vec2::new(750.0, 50.0),
         dir: Vec2::new(-400., 500.),
@@ -88,16 +87,16 @@ async fn main() {
         clear_background(Color::new(0., 1., 1., 1.));
         for (_, collider) in colliders.iter() {
             let body = &bodies[collider.owner];
-            draw_collider(&collider, body.position);
+            draw_collider(collider, body.position);
         }
 
         let overlap_pos = Vec2::new(150., 150.);
         let overlap_halfexts = Vec2::new(200., 200.);
         draw_rectangle_lines(
-            overlap_pos.x() - overlap_halfexts.x(),
-            overlap_pos.y() - overlap_halfexts.y(),
-            overlap_halfexts.x() * 2.,
-            overlap_halfexts.y() * 2.,
+            overlap_pos.x - overlap_halfexts.x,
+            overlap_pos.y - overlap_halfexts.y,
+            overlap_halfexts.x * 2.,
+            overlap_halfexts.y * 2.,
             3.,
             VIOLET,
         );
@@ -128,10 +127,10 @@ async fn main() {
             .unwrap_or(1.);
 
         draw_line(
-            ray.origin.x(),
-            ray.origin.y(),
-            ray.origin.x() + ray.dir.x() * ray_toi,
-            ray.origin.y() + ray.dir.y() * ray_toi,
+            ray.origin.x,
+            ray.origin.y,
+            ray.origin.x + ray.dir.x * ray_toi,
+            ray.origin.y + ray.dir.y * ray_toi,
             1.,
             PURPLE,
         );
@@ -157,10 +156,10 @@ fn controls(mut velocity: Vec2) -> Vec2 {
     // if movement pressed
 
     let damped = (1f32 - 0.2).powf(5. * FPS_INV);
-    *velocity.x_mut() *= damped;
-    // println!("vel: {}", velocity.x());
+    velocity.x *= damped;
+    // println!("vel: {}", velocity.x);
 
-    *velocity.x_mut() = velocity.x().max(-32. * 4.).min(32. * 4.);
+    velocity.x = velocity.x.max(-32. * 4.).min(32. * 4.);
 
     if is_key_pressed(KeyCode::Up) {
         velocity += Vec2::new(0., -128.);
@@ -200,10 +199,10 @@ fn draw_collider(collider: &Collider<TagType>, position: Vec2) {
     color.0[3] = (0.3 * 255.) as u8;
 
     let wh = collider.shape.half_exts;
-    let x_pos = position.x() - wh.x() + collider.offset.x();
-    let y_pos = position.y() - wh.y() + collider.offset.y();
-    draw_rectangle(x_pos, y_pos, wh.x() * 2., wh.y() * 2., color);
-    draw_rectangle_lines(x_pos, y_pos, wh.x() * 2., wh.y() * 2., 3., fill_color);
+    let x_pos = position.x - wh.x + collider.offset.x;
+    let y_pos = position.y - wh.y + collider.offset.y;
+    draw_rectangle(x_pos, y_pos, wh.x * 2., wh.y * 2., color);
+    draw_rectangle_lines(x_pos, y_pos, wh.x * 2., wh.y * 2., 3., fill_color);
 }
 
 fn draw_overlap_test_collider(collider: &Collider<TagType>, position: Vec2) {
@@ -217,10 +216,10 @@ fn draw_overlap_test_collider(collider: &Collider<TagType>, position: Vec2) {
     color.0[3] = (0.3 * 255.) as u8;
 
     let wh = collider.shape.half_exts;
-    let x_pos = position.x() - wh.x() + collider.offset.x();
-    let y_pos = position.y() - wh.y() + collider.offset.y();
-    draw_rectangle(x_pos, y_pos, wh.x() * 2., wh.y() * 2., color);
-    draw_rectangle_lines(x_pos, y_pos, wh.x() * 2., wh.y() * 2., 3., fill_color);
+    let x_pos = position.x - wh.x + collider.offset.x;
+    let y_pos = position.y - wh.y + collider.offset.y;
+    draw_rectangle(x_pos, y_pos, wh.x * 2., wh.y * 2., color);
+    draw_rectangle_lines(x_pos, y_pos, wh.x * 2., wh.y * 2., 3., fill_color);
 }
 
 #[derive(Clone, Copy, Debug)]

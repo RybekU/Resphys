@@ -197,8 +197,8 @@ impl<T: Copy> PhysicsWorld<T> {
         //     let contact = manifold.best_contact();
         //     // body.position -= contact.normal * contact.depth;
 
-        //     *body.velocity.x_mut() *= contact.normal.y().abs();
-        //     *body.velocity.y_mut() *= contact.normal.x().abs();
+        //     *body.velocity.x_mut() *= contact.normal.y.abs();
+        //     *body.velocity.y_mut() *= contact.normal.x.abs();
         // }
     }
 }
@@ -206,7 +206,7 @@ impl<T: Copy> PhysicsWorld<T> {
 fn step_x<T>(bodies: &mut BodySet, colliders: &mut ColliderSet<T>, body_handles: &[BodyHandle]) {
     for body1_handle in body_handles {
         let body1 = bodies.get(*body1_handle).expect("Collider without a body");
-        let mut move_x = body1.movement.x();
+        let mut move_x = body1.movement.x;
 
         if let BodyStatus::Static = body1.status {
             continue;
@@ -249,20 +249,20 @@ fn step_x<T>(bodies: &mut BodySet, colliders: &mut ColliderSet<T>, body_handles:
                     body2.position,
                     0.001,
                 ) {
-                    if body1.velocity.x() > 0. {
+                    if body1.velocity.x > 0. {
                         move_x = move_x.min(
-                            body2.position.x() - collider1.offset.x() + collider2.offset.x()
-                                - collider2.shape.half_exts.x()
-                                - collider1.shape.half_exts.x()
-                                - body1.position.x(),
+                            body2.position.x - collider1.offset.x + collider2.offset.x
+                                - collider2.shape.half_exts.x
+                                - collider1.shape.half_exts.x
+                                - body1.position.x,
                         );
                     } else {
                         move_x = move_x.max(
-                            body2.position.x() - collider1.offset.x()
-                                + collider2.offset.x()
-                                + collider2.shape.half_exts.x()
-                                + collider1.shape.half_exts.x()
-                                - body1.position.x(),
+                            body2.position.x - collider1.offset.x
+                                + collider2.offset.x
+                                + collider2.shape.half_exts.x
+                                + collider1.shape.half_exts.x
+                                - body1.position.x,
                         );
                     }
                 }
@@ -271,7 +271,7 @@ fn step_x<T>(bodies: &mut BodySet, colliders: &mut ColliderSet<T>, body_handles:
         let body1 = bodies
             .get_mut(*body1_handle)
             .expect("Collider without a body");
-        *body1.position.x_mut() += move_x;
+        body1.position.x += move_x;
     }
 }
 
@@ -283,7 +283,7 @@ fn step_y<T>(
 ) {
     for body1_handle in body_handles {
         let body1 = bodies.get(*body1_handle).expect("Collider without a body");
-        let mut move_y = body1.movement.y();
+        let mut move_y = body1.movement.y;
 
         if let BodyStatus::Static = body1.status {
             continue;
@@ -320,20 +320,20 @@ fn step_y<T>(
                         body2.position,
                         0.001,
                     ) {
-                        if body1.velocity.y() > 0. {
+                        if body1.velocity.y > 0. {
                             move_y = move_y.min(
-                                body2.position.y() - collider1.offset.y() + collider2.offset.y()
-                                    - collider2.shape.half_exts.y()
-                                    - collider1.shape.half_exts.y()
-                                    - body1.position.y(),
+                                body2.position.y - collider1.offset.y + collider2.offset.y
+                                    - collider2.shape.half_exts.y
+                                    - collider1.shape.half_exts.y
+                                    - body1.position.y,
                             );
                         } else {
                             move_y = move_y.max(
-                                body2.position.y() - collider1.offset.y()
-                                    + collider2.offset.y()
-                                    + collider2.shape.half_exts.y()
-                                    + collider1.shape.half_exts.y()
-                                    - body1.position.y(),
+                                body2.position.y - collider1.offset.y
+                                    + collider2.offset.y
+                                    + collider2.shape.half_exts.y
+                                    + collider1.shape.half_exts.y
+                                    - body1.position.y,
                             );
                         }
                     }
@@ -346,7 +346,7 @@ fn step_y<T>(
         let body1 = bodies
             .get_mut(*body1_handle)
             .expect("Collider without a body");
-        *body1.position.y_mut() += move_y;
+        body1.position.y += move_y;
     }
 }
 
@@ -396,16 +396,9 @@ fn describe_collisions<T: Copy>(
         let current_interaction = {
             use ColliderState::Solid;
             if let (Solid, Solid) = (collider1.state, collider2.state) {
-                if let Some(manifold) =
-                    collision_manifold(collider1, position1, collider2, position2)
-                {
-                    // manifolds.push((collider1.owner.0, collider2.owner.0, manifold));
-                    Some(Interaction::Collision(CollisionInfo::from(
-                        manifold.best_contact(),
-                    )))
-                } else {
-                    None
-                }
+                collision_manifold(collider1, position1, collider2, position2).map(|manifold| {
+                    Interaction::Collision(CollisionInfo::from(manifold.best_contact()))
+                })
             } else if is_colliding(collider1, position1, collider2, position2) {
                 Some(Interaction::Overlap)
             } else {

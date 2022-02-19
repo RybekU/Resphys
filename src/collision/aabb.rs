@@ -65,10 +65,10 @@ pub fn intersection_aabb_aabb(
     let b_min = b_loc - b_half_exts;
     let b_max = b_loc + b_half_exts;
 
-    let d0 = b_max.x() < a_min.x();
-    let d1 = a_max.x() < b_min.x();
-    let d2 = b_max.y() < a_min.y();
-    let d3 = a_max.y() < b_min.y();
+    let d0 = b_max.x < a_min.x;
+    let d1 = a_max.x < b_min.x;
+    let d2 = b_max.y < a_min.y;
+    let d3 = a_max.y < b_min.y;
 
     !(d0 | d1 | d2 | d3)
 }
@@ -84,18 +84,18 @@ pub fn contact_aabb_aabb(
 
     let overlap = a_half_exts + b_half_exts - distance.abs();
 
-    if overlap.x() < 0. || overlap.y() < 0. {
+    if overlap.x < 0. || overlap.y < 0. {
         return None;
     }
 
-    let depth1 = overlap.x();
-    let normal1 = Vec2::new(distance.x().signum(), 0.);
-    let contact_point_x = Vec2::new(a_loc.x() + a_half_exts.x() * normal1.x(), a_loc.y());
+    let depth1 = overlap.x;
+    let normal1 = Vec2::new(distance.x.signum(), 0.);
+    let contact_point_x = Vec2::new(a_loc.x + a_half_exts.x * normal1.x, a_loc.y);
     let contact1 = Contact::new(depth1, normal1, contact_point_x);
 
-    let depth2 = overlap.y();
-    let normal2 = Vec2::new(0., distance.y().signum());
-    let contact_point_y = Vec2::new(a_loc.x(), a_loc.y() + a_half_exts.y() * normal2.y());
+    let depth2 = overlap.y;
+    let normal2 = Vec2::new(0., distance.y.signum());
+    let contact_point_y = Vec2::new(a_loc.x, a_loc.y + a_half_exts.y * normal2.y);
     let contact2 = Contact::new(depth2, normal2, contact_point_y);
 
     Some(ContactManifold {
